@@ -1,7 +1,6 @@
-
 import React from 'react';
 import { useAppStore } from '../store/useAppStore';
-import { Move, RotateCw, Scaling, Grid, Play, Save, Download, Undo2, Redo2, Zap, Video } from 'lucide-react';
+import { Move, RotateCw, Scaling, Grid, Play, Save, Download, Undo2, Redo2, Zap, Video, MonitorPlay } from 'lucide-react';
 
 export default function Toolbar() {
   const { 
@@ -17,103 +16,85 @@ export default function Toolbar() {
     addCameraToScene
   } = useAppStore();
 
-  const ToolBtn = ({ active, onClick, children, title, disabled }: any) => (
+  const ToolBtn = ({ active, onClick, children, title, disabled, colorClass }: any) => (
     <button
       onClick={onClick}
       title={title}
       disabled={disabled}
-      className={`p-1.5 rounded-md transition-colors flex items-center justify-center ${
+      className={`relative w-9 h-9 rounded-lg transition-all flex items-center justify-center group ${
         active 
-          ? 'bg-blue-600 text-white shadow-sm' 
-          : 'text-slate-400 hover:text-white hover:bg-slate-700'
-      } ${disabled ? 'opacity-30 cursor-not-allowed hover:bg-transparent' : ''}`}
+          ? 'bg-[#27272a] text-white border border-white/10 shadow-inner' 
+          : 'text-zinc-500 hover:text-zinc-200 hover:bg-[#27272a] border border-transparent hover:border-white/5'
+      } ${disabled ? 'opacity-30 cursor-not-allowed hover:bg-transparent hover:border-transparent' : ''}`}
     >
       {children}
+      {active && <div className={`absolute -bottom-1 w-1 h-1 rounded-full ${colorClass || 'bg-indigo-500'}`} />}
     </button>
   );
 
   return (
-    <div className="h-10 bg-slate-800 border-b border-slate-900 flex items-center px-4 justify-between select-none shadow-md z-20 relative">
-      <div className="flex items-center gap-4">
-        {/* Transform Tools */}
-        <div className="flex items-center gap-1 bg-slate-900/50 p-1 rounded-lg border border-slate-700/50">
-            <ToolBtn 
-            active={transformMode === 'translate'} 
-            onClick={() => setTransformMode('translate')}
-            title="移动 (T)"
-            >
-            <Move size={16} />
-            </ToolBtn>
-            <ToolBtn 
-            active={transformMode === 'rotate'} 
-            onClick={() => setTransformMode('rotate')}
-            title="旋转 (R)"
-            >
-            <RotateCw size={16} />
-            </ToolBtn>
-            <ToolBtn 
-            active={transformMode === 'scale'} 
-            onClick={() => setTransformMode('scale')}
-            title="缩放 (S)"
-            >
-            <Scaling size={16} />
-            </ToolBtn>
-        </div>
-
-        {/* Add Objects */}
-        <div className="flex items-center gap-1 bg-slate-900/50 p-1 rounded-lg border border-slate-700/50">
-             <ToolBtn onClick={addLightToScene} title="添加光源">
-                <Zap size={16} />
-             </ToolBtn>
-             <ToolBtn onClick={addCameraToScene} title="添加相机">
-                <Video size={16} />
-             </ToolBtn>
-        </div>
-
-        {/* History Tools */}
-        <div className="flex items-center gap-1 bg-slate-900/50 p-1 rounded-lg border border-slate-700/50">
-            <ToolBtn 
-                onClick={undo} 
-                disabled={past.length === 0}
-                title="撤销 (Ctrl+Z)"
-            >
-                <Undo2 size={16} />
-            </ToolBtn>
-            <ToolBtn 
-                onClick={redo} 
-                disabled={future.length === 0}
-                title="重做 (Ctrl+Shift+Z)"
-            >
-                <Redo2 size={16} />
-            </ToolBtn>
-        </div>
+    <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-4 py-2 bg-[#18181b] border border-white/10 rounded-xl shadow-lg shadow-black/50">
+      
+      {/* Transform Tools */}
+      <div className="flex items-center gap-1 pr-4 border-r border-white/10">
+        <ToolBtn 
+          active={transformMode === 'translate'} 
+          onClick={() => setTransformMode('translate')}
+          title="Move (T)"
+          colorClass="bg-rose-500"
+        >
+          <Move size={18} className={transformMode === 'translate' ? 'text-rose-500' : ''} />
+        </ToolBtn>
+        <ToolBtn 
+          active={transformMode === 'rotate'} 
+          onClick={() => setTransformMode('rotate')}
+          title="Rotate (R)"
+          colorClass="bg-emerald-500"
+        >
+          <RotateCw size={18} className={transformMode === 'rotate' ? 'text-emerald-500' : ''} />
+        </ToolBtn>
+        <ToolBtn 
+          active={transformMode === 'scale'} 
+          onClick={() => setTransformMode('scale')}
+          title="Scale (S)"
+          colorClass="bg-blue-500"
+        >
+          <Scaling size={18} className={transformMode === 'scale' ? 'text-blue-500' : ''} />
+        </ToolBtn>
       </div>
 
-      {/* View Settings */}
-      <div className="flex items-center gap-4">
-         <div className="flex items-center gap-1 bg-slate-900/50 p-1 rounded-lg border border-slate-700/50">
-            <ToolBtn 
-              active={renderSettings.gridVisible} 
-              onClick={() => updateRenderSettings({ gridVisible: !renderSettings.gridVisible })}
-              title="切换网格显示"
-            >
-              <Grid size={16} />
-            </ToolBtn>
-            <div className="w-[1px] h-4 bg-slate-700 mx-1"></div>
-            <ToolBtn title="播放动画 (仅演示)">
-              <Play size={16} />
-            </ToolBtn>
-         </div>
+      {/* Creation Tools */}
+      <div className="flex items-center gap-1 pr-4 border-r border-white/10">
+         <ToolBtn onClick={addLightToScene} title="Add Light">
+            <Zap size={18} className="group-hover:text-yellow-500 transition-colors" />
+         </ToolBtn>
+         <ToolBtn onClick={addCameraToScene} title="Add Camera">
+            <Video size={18} className="group-hover:text-purple-500 transition-colors" />
+         </ToolBtn>
       </div>
 
-      {/* File Actions */}
-      <div className="flex items-center gap-2">
-         <button className="text-xs font-medium text-slate-400 hover:text-white px-3 py-1.5 rounded hover:bg-slate-700 flex items-center gap-2 transition-colors">
-            <Save size={14} /> 保存工程
-         </button>
-         <button className="text-xs font-medium bg-blue-600 text-white px-3 py-1.5 rounded hover:bg-blue-500 flex items-center gap-2 shadow-sm transition-colors">
-            <Download size={14} /> 导出 GLB
-         </button>
+      {/* History */}
+      <div className="flex items-center gap-1 pr-4 border-r border-white/10">
+        <ToolBtn onClick={undo} disabled={past.length === 0} title="Undo">
+            <Undo2 size={18} />
+        </ToolBtn>
+        <ToolBtn onClick={redo} disabled={future.length === 0} title="Redo">
+            <Redo2 size={18} />
+        </ToolBtn>
+      </div>
+
+      {/* View & Export */}
+      <div className="flex items-center gap-1">
+        <ToolBtn 
+          active={renderSettings.gridVisible} 
+          onClick={() => updateRenderSettings({ gridVisible: !renderSettings.gridVisible })}
+          title="Toggle Grid"
+        >
+          <Grid size={18} />
+        </ToolBtn>
+        <ToolBtn title="Export GLB">
+          <Download size={18} />
+        </ToolBtn>
       </div>
     </div>
   );

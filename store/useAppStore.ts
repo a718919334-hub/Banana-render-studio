@@ -89,7 +89,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   renderSettings: {
     autoRotate: false, 
-    gridVisible: true,
+    gridVisible: false,
   },
   
   cameraState: {

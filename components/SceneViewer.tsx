@@ -2,7 +2,7 @@ import React, { Suspense, useEffect, useRef, useState, useMemo, ReactNode, Compo
 import { Canvas, useThree, useFrame } from '@react-three/fiber';
 import { OrbitControls, useGLTF, Grid, TransformControls, Html, useProgress, Bounds, Environment, GizmoHelper, GizmoViewport, ContactShadows, Billboard, useHelper, PerspectiveCamera } from '@react-three/drei';
 import { useAppStore } from '../store/useAppStore';
-import { Zap, Loader2, Sparkles, AlertTriangle, Box, RefreshCw, Aperture, Ratio, Wand2, ArrowRight, X, Download, Video, Lock, Layers, Triangle, Activity } from 'lucide-react';
+import { Zap, Loader2, Sparkles, AlertTriangle, Box, RefreshCw, Aperture, Ratio, Wand2, ArrowRight, X, Download, Video, Lock, Layers, Triangle, Activity, Maximize2 } from 'lucide-react';
 import * as THREE from 'three';
 import { DirectionalLightHelper, CameraHelper } from 'three';
 import { v4 as uuidv4 } from 'uuid';
@@ -188,6 +188,11 @@ interface ErrorBoundaryState {
 class ModelErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   state: ErrorBoundaryState = { hasError: false, error: null };
 
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
   static getDerivedStateFromError(error: any) {
     return { hasError: true, error };
   }
@@ -209,11 +214,11 @@ class ModelErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryStat
     if (this.state.hasError) {
       return (
         <Html center>
-           <div className="bg-red-900/90 border border-red-500 p-6 rounded-lg text-white flex flex-col items-center gap-4 backdrop-blur-md shadow-2xl select-none w-64 z-50 pointer-events-none">
-              <AlertTriangle size={32} className="text-red-400" />
+           <div className="bg-[#1f0f0f] border border-red-900 p-6 rounded-lg text-white flex flex-col items-center gap-4 shadow-2xl select-none w-64 z-50 pointer-events-none">
+              <AlertTriangle size={32} className="text-red-500" />
               <div className="text-center">
                   <div className="font-bold mb-1">Error Loading Object</div>
-                  <div className="text-[10px] font-mono opacity-80 break-words text-center mb-2 line-clamp-3">
+                  <div className="text-[10px] font-mono opacity-80 break-words text-center mb-2 line-clamp-3 text-red-200">
                       {this.state.error?.message}
                   </div>
               </div>
@@ -225,7 +230,7 @@ class ModelErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryStat
                     if (this.props.modelUrl) useGLTF.clear(this.props.modelUrl);
                     this.props.onReset();
                 }}
-                className="pointer-events-auto px-4 py-2 bg-red-700 hover:bg-red-600 rounded text-xs font-bold w-full flex items-center justify-center gap-2"
+                className="pointer-events-auto px-4 py-2 bg-red-800 hover:bg-red-700 rounded text-xs font-bold w-full flex items-center justify-center gap-2"
               >
                 <RefreshCw size={12} /> Remove Object
               </button>
@@ -241,9 +246,9 @@ function ModelLoader() {
   const { progress } = useProgress();
   return (
     <Html center>
-      <div className="flex flex-col items-center gap-2 text-white bg-black/60 p-6 rounded-xl backdrop-blur-md border border-slate-700 shadow-2xl z-50">
-        <Loader2 className="animate-spin text-blue-500" size={30} />
-        <div className="text-xs font-bold">{progress.toFixed(0)}%</div>
+      <div className="flex flex-col items-center gap-2 text-white bg-[#09090b] p-6 rounded-2xl border border-white/10 shadow-2xl z-50">
+        <Loader2 className="animate-spin text-indigo-500" size={32} />
+        <div className="text-xs font-bold tracking-wider">{progress.toFixed(0)}%</div>
       </div>
     </Html>
   );
@@ -561,57 +566,59 @@ const RenderWindow = ({ onClose, onCaptureRequest }: any) => {
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm animate-in fade-in duration-200">
-            <div className="w-[900px] h-[600px] bg-[#1e1e1e] border border-slate-700 rounded-xl shadow-2xl flex flex-col overflow-hidden">
-                <div className="h-12 bg-[#252526] flex items-center justify-between px-4 border-b border-slate-800 shrink-0">
-                    <div className="flex items-center gap-2 text-slate-200 font-bold">
-                        <Aperture size={18} className="text-blue-400"/>
-                        <span>高级渲染工作台</span>
-                        <span className="text-[10px] bg-blue-900/50 text-blue-300 px-2 py-0.5 rounded border border-blue-800">Gemini 2.5 Flash</span>
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 animate-in fade-in duration-300">
+            <div className="w-[900px] h-[600px] bg-[#18181b] border border-white/10 rounded-xl shadow-2xl flex flex-col overflow-hidden relative">
+                <div className="h-14 bg-[#18181b] flex items-center justify-between px-6 border-b border-white/5 shrink-0">
+                    <div className="flex items-center gap-2 text-white font-bold tracking-wide">
+                        <div className="p-1.5 rounded-lg bg-indigo-500/20 text-indigo-400"><Aperture size={16}/></div>
+                        <span>AI Render Studio</span>
+                        <span className="text-[10px] bg-indigo-600 text-white px-2 py-0.5 rounded-full font-bold ml-2">Gemini 2.5 Flash</span>
                     </div>
-                    <button onClick={onClose} className="p-1 hover:bg-slate-700 rounded text-slate-400 hover:text-white transition"><X size={18}/></button>
+                    <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-full text-zinc-400 hover:text-white transition"><X size={18}/></button>
                 </div>
                 <div className="flex-1 flex min-h-0">
-                    <div className="flex-1 bg-[#111] relative p-4 flex items-center justify-center border-r border-slate-800">
-                         <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'linear-gradient(45deg, #222 25%, transparent 25%), linear-gradient(-45deg, #222 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #222 75%), linear-gradient(-45deg, transparent 75%, #222 75%)', backgroundSize: '20px 20px' }} />
-                         <div className="relative max-w-full max-h-full shadow-2xl z-10">
+                    <div className="flex-1 bg-black relative p-6 flex items-center justify-center">
+                         <div className="absolute inset-0 opacity-20" style={{ backgroundImage: 'radial-gradient(circle at center, #1e1b4b 0%, transparent 70%)' }} />
+                         <div className="relative max-w-full max-h-full shadow-lg z-10 rounded-lg overflow-hidden border border-white/10 bg-black">
                              {renderResult ? (
-                                <img src={renderResult} className="max-w-full max-h-full object-contain rounded border border-slate-700" alt="Result" />
+                                <img src={renderResult} className="max-w-full max-h-full object-contain" alt="Result" />
                              ) : baseImage ? (
-                                <img src={baseImage} className="max-w-full max-h-full object-contain rounded border border-slate-700 opacity-80" alt="Preview" />
+                                <img src={baseImage} className="max-w-full max-h-full object-contain opacity-80" alt="Preview" />
                              ) : (
-                                <Loader2 className="animate-spin text-slate-500"/>
+                                <Loader2 className="animate-spin text-zinc-600"/>
                              )}
                              {isRendering && (
-                                 <div className="absolute inset-0 bg-black/60 backdrop-blur-[2px] flex flex-col items-center justify-center text-white z-20">
-                                     <Loader2 size={40} className="animate-spin text-blue-500 mb-4" />
-                                     <div className="font-bold">Gemini 正在计算...</div>
+                                 <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center text-white z-20">
+                                     <div className="relative">
+                                         <Loader2 size={48} className="relative animate-spin text-indigo-500 mb-4" />
+                                     </div>
+                                     <div className="font-bold tracking-widest text-sm text-indigo-300">PROCESSING...</div>
                                  </div>
                              )}
                          </div>
                     </div>
-                    <div className="w-80 bg-[#1e1e1e] flex flex-col p-5 gap-6 overflow-y-auto">
+                    <div className="w-80 bg-[#18181b] border-l border-white/5 flex flex-col p-6 gap-6 overflow-y-auto">
                         <div>
-                            <label className="text-xs font-bold text-slate-400 mb-2 flex items-center gap-2"><Ratio size={14} /> 输出宽高比</label>
+                            <label className="text-xs font-bold text-zinc-400 mb-3 flex items-center gap-2 uppercase tracking-wider"><Ratio size={12} /> Aspect Ratio</label>
                             <div className="grid grid-cols-2 gap-2">
                                 {RESOLUTION_PRESETS.map((preset, idx) => (
-                                    <button key={idx} onClick={() => setSelectedPresetIdx(idx)} className={`flex flex-col items-center justify-center p-2 rounded border transition-all ${selectedPresetIdx === idx ? 'bg-blue-600/20 border-blue-500 text-white' : 'bg-[#252526] border-slate-700 text-slate-400'}`}>
-                                        <div className="text-xs font-bold mb-0.5">{preset.ratio}</div>
-                                        <div className="text-[10px] opacity-70">{preset.label}</div>
+                                    <button key={idx} onClick={() => setSelectedPresetIdx(idx)} className={`flex flex-col items-center justify-center p-3 rounded-lg border transition-all ${selectedPresetIdx === idx ? 'bg-indigo-500/10 border-indigo-500/30 text-indigo-400 shadow-sm' : 'bg-[#27272a] border-white/5 text-zinc-500 hover:bg-[#3f3f46] hover:text-zinc-200'}`}>
+                                        <div className="text-xs font-bold mb-1">{preset.ratio}</div>
+                                        <div className="text-[10px] opacity-60">{preset.label}</div>
                                     </button>
                                 ))}
                             </div>
                         </div>
                         <div className="flex-1">
-                            <label className="text-xs font-bold text-slate-400 mb-2 flex items-center gap-2"><Wand2 size={14} /> 渲染提示词</label>
-                            <textarea value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="描述期望的风格..." className="w-full h-32 bg-[#111] border border-slate-700 rounded-lg p-3 text-sm text-slate-200 focus:outline-none focus:border-blue-500 resize-none" />
+                            <label className="text-xs font-bold text-zinc-400 mb-3 flex items-center gap-2 uppercase tracking-wider"><Wand2 size={12} /> Prompt</label>
+                            <textarea value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="Describe the style (e.g. Cyberpunk, Claymation, Realistic)..." className="w-full h-32 bg-[#09090b] border border-white/10 rounded-lg p-4 text-sm text-zinc-200 focus:outline-none focus:border-indigo-500 focus:bg-[#000] resize-none transition-all placeholder:text-zinc-600" />
                         </div>
                         <div className="mt-auto flex flex-col gap-3">
-                            <button onClick={handleRender} disabled={isRendering} className="w-full py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold rounded-lg shadow-lg disabled:opacity-50 flex items-center justify-center gap-2">
-                                <Sparkles size={16} /> {isRendering ? '渲染生成中...' : '开始渲染'}
+                            <button onClick={handleRender} disabled={isRendering} className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl shadow-lg shadow-indigo-900/40 disabled:opacity-50 flex items-center justify-center gap-2 transition-all hover:translate-y-[-1px]">
+                                <Sparkles size={16} fill="currentColor" /> {isRendering ? 'Rendering...' : 'Generate Render'}
                             </button>
                             {renderResult && (
-                                <a href={renderResult} download={`render-${Date.now()}.png`} className="w-full py-2 bg-[#2d2d2d] text-slate-200 font-medium rounded-lg border border-slate-700 flex items-center justify-center gap-2"><Download size={14} /> 保存图片</a>
+                                <a href={renderResult} download={`render-${Date.now()}.png`} className="w-full py-2.5 bg-[#27272a] hover:bg-[#3f3f46] text-zinc-200 font-bold rounded-xl border border-white/5 flex items-center justify-center gap-2 transition-all"><Download size={14} /> Save Image</a>
                             )}
                         </div>
                     </div>
@@ -649,19 +656,19 @@ export default function SceneViewer() {
     const newId = uuidv4();
     
     // Placeholder asset
-    addAsset({ id: newId, originalName: prompt, imageUrl: "https://placehold.co/100x100/252526/white?text=Tripo+AI", status: AssetStatus.PENDING, modelUrl: null, createdAt: Date.now() });
+    addAsset({ id: newId, originalName: prompt, imageUrl: "https://placehold.co/100x100/18181b/666?text=Tripo+AI", status: AssetStatus.PENDING, modelUrl: null, createdAt: Date.now() });
     
     // Clear input but keep the logic running
     const originalPrompt = prompt;
     setPrompt('');
 
     try {
-        addNotification('info', 'Gemini 3 Flash 正在优化提示词...');
+        addNotification('info', 'Optimizing prompt with Gemini...');
         const optimizedPrompt = await optimizePromptFor3D(originalPrompt);
         
         if (optimizedPrompt !== originalPrompt) {
             console.log("Optimized Prompt:", optimizedPrompt);
-            addNotification('success', `提示词已优化: ${optimizedPrompt.slice(0, 30)}...`);
+            addNotification('success', `Optimized: ${optimizedPrompt.slice(0, 30)}...`);
         }
 
         const taskId = await createTextTo3DTask(optimizedPrompt);
@@ -670,15 +677,15 @@ export default function SceneViewer() {
         pollTripoTask(taskId, (status, modelUrl) => {
             updateAsset(newId, { status, modelUrl });
             if (status === AssetStatus.COMPLETED && modelUrl) {
-                addNotification('success', '生成成功');
+                addNotification('success', 'Model Generated');
                 addModelToScene(modelUrl, originalPrompt);
             } else if (status === AssetStatus.ERROR) {
-                addNotification('error', '生成失败');
+                addNotification('error', 'Generation Failed');
             }
         });
     } catch (e) {
         updateAsset(newId, { status: AssetStatus.ERROR });
-        addNotification('error', '处理请求时发生错误');
+        addNotification('error', 'Request Failed');
     } finally {
         setIsGenerating(false);
     }
@@ -701,46 +708,51 @@ export default function SceneViewer() {
 
   return (
     <div 
-        className="flex-1 relative bg-[#1a1a1c] overflow-hidden flex flex-col"
+        className="flex-1 relative w-full h-full"
         onDragOver={(e) => e.preventDefault()}
         onDrop={handleDrop}
     >
       <Toolbar />
       
-      {/* --- Left Top: Render Button --- */}
-      <div className="absolute top-14 left-4 z-10 pointer-events-auto">
-         <button onClick={() => setShowRenderWindow(!showRenderWindow)} className="group bg-[#1e1e1e] p-2.5 rounded-lg border border-slate-800 shadow-lg text-slate-400 hover:text-white hover:border-blue-500 hover:shadow-blue-500/20 transition-all flex items-center gap-2">
-            <Aperture size={20} className="group-hover:text-blue-400 transition-colors"/>
-            <span className="max-w-0 overflow-hidden group-hover:max-w-xs transition-all duration-300 text-xs font-bold whitespace-nowrap">渲染出图</span>
+      {/* --- Left Top: Render Button (Dark Grey Layer) --- */}
+      <div className="absolute top-20 left-4 z-10 pointer-events-auto">
+         <button onClick={() => setShowRenderWindow(!showRenderWindow)} className="group bg-[#18181b] p-3 rounded-2xl border border-white/5 shadow-lg shadow-black/20 text-zinc-400 hover:text-white hover:border-indigo-500/30 transition-all flex items-center gap-3">
+            <div className="p-1.5 bg-indigo-500/10 rounded-lg text-indigo-400 group-hover:bg-indigo-500 group-hover:text-white transition-colors">
+                <Aperture size={20} />
+            </div>
+            <div className="flex flex-col items-start">
+                <span className="text-xs font-bold tracking-wide">AI RENDER</span>
+                <span className="text-[9px] opacity-60 font-medium">VISUALIZE</span>
+            </div>
          </button>
       </div>
 
-      {/* --- Right Top: Stats & Info --- */}
-      <div className="absolute top-14 right-4 z-10 pointer-events-auto flex flex-col items-end gap-2">
+      {/* --- Right Top: Stats & Info (Dark Grey Layer) --- */}
+      <div className="absolute top-20 right-4 z-10 pointer-events-auto flex flex-col items-end gap-3">
           {/* Stats Panel */}
-          <div className="bg-[#1e1e1e]/90 backdrop-blur-md border border-slate-700 p-2.5 rounded-lg shadow-xl text-[10px] font-mono text-slate-300 min-w-[140px] flex flex-col gap-1 select-none">
-             <div className="flex justify-between items-center border-b border-slate-700/50 pb-1 mb-1 opacity-70">
-                 <div className="flex items-center gap-1 font-sans font-bold"><Activity size={10} /> <span>场景统计</span></div>
+          <div className="bg-[#18181b] border border-white/5 p-4 rounded-2xl shadow-lg shadow-black/20 text-[10px] font-mono text-zinc-500 min-w-[160px] flex flex-col gap-2 select-none group hover:border-white/10 transition-colors">
+             <div className="flex justify-between items-center border-b border-white/5 pb-2 mb-1 opacity-80">
+                 <div className="flex items-center gap-1.5 font-sans font-bold tracking-wider text-zinc-300"><Activity size={12} className="text-emerald-500" /> STATISTICS</div>
              </div>
              <div className="flex justify-between items-center">
-                 <span className="text-slate-500 flex items-center gap-1"><Layers size={10} /> Obj</span>
-                 <span className="text-white font-bold">{stats.objects}</span>
+                 <span className="text-zinc-600 flex items-center gap-1.5"><Layers size={12} /> Objects</span>
+                 <span className="text-zinc-300 font-bold">{stats.objects}</span>
              </div>
              <div className="flex justify-between items-center">
-                 <span className="text-slate-500 flex items-center gap-1"><Box size={10} /> Verts</span>
-                 <span className="text-blue-400">{stats.verts.toLocaleString()}</span>
+                 <span className="text-zinc-600 flex items-center gap-1.5"><Box size={12} /> Vertices</span>
+                 <span className="text-blue-500">{stats.verts.toLocaleString()}</span>
              </div>
              <div className="flex justify-between items-center">
-                 <span className="text-slate-500 flex items-center gap-1"><Triangle size={10} /> Tris</span>
-                 <span className="text-yellow-400">{stats.tris.toLocaleString()}</span>
+                 <span className="text-zinc-600 flex items-center gap-1.5"><Triangle size={12} /> Triangles</span>
+                 <span className="text-orange-500">{stats.tris.toLocaleString()}</span>
              </div>
           </div>
 
           {/* Camera Active Indicator */}
           {activeCameraId && (
-              <div className="flex items-center gap-2 bg-red-600/90 text-white px-3 py-1.5 rounded-lg shadow-lg border border-red-500 animate-pulse">
-                  <Video size={16} />
-                  <span className="text-xs font-bold">正在预览相机视角</span>
+              <div className="flex items-center gap-3 bg-red-900/80 text-white px-4 py-2.5 rounded-xl shadow-lg border border-red-500/50 animate-pulse">
+                  <Video size={16} fill="currentColor" />
+                  <span className="text-xs font-bold tracking-wide">REC • CAMERA VIEW</span>
               </div>
           )}
       </div>
@@ -748,32 +760,34 @@ export default function SceneViewer() {
       {showRenderWindow && <RenderWindow onClose={() => setShowRenderWindow(false)} onCaptureRequest={() => captureRef.current ? captureRef.current() : null} />}
 
       {sceneObjects.length === 0 && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-500 z-0 pointer-events-none">
-              <Box size={80} className="mb-6 opacity-10" />
-              <div className="text-xl font-bold mb-2 opacity-60">空场景</div>
-              <button onClick={handleLoadDemo} className="pointer-events-auto mt-4 px-6 py-2 bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/30 rounded-full text-blue-300 text-sm font-medium flex items-center gap-2 transition-all">
-                  <Sparkles size={16} /> 添加测试模型
+          <div className="absolute inset-0 flex flex-col items-center justify-center text-zinc-600 z-0 pointer-events-none">
+              <div className="w-24 h-24 rounded-full bg-white/5 flex items-center justify-center mb-6 border border-white/5 animate-pulse">
+                  <Box size={40} className="opacity-20 text-white" />
+              </div>
+              <div className="text-2xl font-bold mb-2 text-white/10 tracking-tight">Scene Empty</div>
+              <div className="text-sm opacity-50 mb-6 text-white/30">Drag and drop assets or create new ones</div>
+              <button onClick={handleLoadDemo} className="pointer-events-auto px-6 py-2.5 bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/30 rounded-full text-indigo-300 text-sm font-bold flex items-center gap-2 transition-all hover:scale-105">
+                  <Sparkles size={16} /> Load Demo Asset
               </button>
           </div>
       )}
 
-      <div className="flex-1 cursor-crosshair relative">
+      <div className="flex-1 cursor-crosshair relative w-full h-full">
           <Canvas 
             shadows 
             // Camera position is now handled by CameraManager
             camera={{ position: [5, 5, 5], fov: 50, near: 0.1, far: 1000 }} 
-            gl={{ preserveDrawingBuffer: true }}
+            gl={{ preserveDrawingBuffer: true, antialias: true, alpha: true }}
             onPointerMissed={(e) => {
                if (e.type === 'click') setSelectedObjectId(null);
             }}
           >
-            <color attach="background" args={['#1a1a1c']} />
             <ViewportCapturer captureRef={captureRef} />
             <SceneStatsUpdater onUpdate={setStats} />
             <CameraManager /> {/* Handles OrbitControls and Camera Sync */}
             
-            <ambientLight intensity={0.6} />
-            <hemisphereLight intensity={0.6} groundColor="#000000" color="#ffffff" />
+            <ambientLight intensity={0.4} />
+            <hemisphereLight intensity={0.5} groundColor="#000000" color="#333333" />
             
             <Suspense fallback={<ModelLoader />}>
                 <Bounds fit clip={false} observe={false} margin={1.2}>
@@ -834,26 +848,27 @@ export default function SceneViewer() {
                         );
                     })}
                 </Bounds>
-                <Environment preset="city" /> 
-                <ContactShadows position={[0, -0.01, 0]} opacity={0.4} scale={20} blur={2} far={4} />
+                <Environment preset="city" blur={0.8} background={false} /> 
+                <ContactShadows position={[0, -0.01, 0]} opacity={0.4} scale={20} blur={2.5} far={4} color="#000000" />
             </Suspense>
 
-            {renderSettings.gridVisible && <Grid name="GlobalGrid" infiniteGrid fadeDistance={30} sectionColor="#4f4f4f" cellColor="#2f2f2f" position={[0, -0.01, 0]} />}
+            {renderSettings.gridVisible && <Grid name="GlobalGrid" infiniteGrid fadeDistance={30} sectionColor="#4f4f4f" cellColor="#1a1a1a" position={[0, -0.01, 0]} />}
             <GizmoHelper alignment="bottom-right" margin={[80, 80]}>
-                <GizmoViewport axisColors={['#9d4b4b', '#2f7f4f', '#3b5b9d']} labelColor="white" />
+                <GizmoViewport axisColors={['#f43f5e', '#10b981', '#3b82f6']} labelColor="white" />
             </GizmoHelper>
           </Canvas>
       </div>
 
-      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 w-[600px] max-w-[90%] z-20 pointer-events-auto">
-         <div className="bg-[#1e1e1e]/90 backdrop-blur-md border border-slate-700 p-2 rounded-xl shadow-2xl flex gap-2 ring-1 ring-white/5">
+      <div className="absolute bottom-8 left-1/2 -translate-x-1/2 w-[600px] max-w-[90%] z-20 pointer-events-auto">
+         <div className="bg-[#18181b] border border-white/5 p-2 rounded-2xl shadow-lg shadow-black/50 flex gap-3 ring-1 ring-white/5 transition-all focus-within:ring-indigo-500/50 focus-within:border-indigo-500/50">
             <input 
                 type="text" value={prompt} onChange={(e) => setPrompt(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleTextTo3D()}
-                placeholder="输入提示词生成 3D 模型..."
-                className="flex-1 bg-black/40 border border-slate-600/50 rounded-lg py-3 px-4 text-sm text-white focus:outline-none focus:border-blue-500 transition-all"
+                placeholder="Describe a 3D object to generate..."
+                className="flex-1 bg-transparent border-none py-3 px-4 text-sm text-zinc-200 focus:outline-none placeholder:text-zinc-600 font-medium"
             />
-            <button onClick={handleTextTo3D} disabled={isGenerating || !prompt.trim()} className="bg-blue-600 hover:bg-blue-500 text-white px-5 rounded-lg font-medium text-sm flex items-center gap-2 disabled:opacity-50 transition-all">
-                {isGenerating ? <Loader2 size={16} className="animate-spin" /> : <ArrowRight size={16} />} 生成
+            <button onClick={handleTextTo3D} disabled={isGenerating || !prompt.trim()} className="bg-indigo-600 hover:bg-indigo-500 text-white px-6 rounded-xl font-bold text-sm flex items-center gap-2 disabled:opacity-50 transition-all shadow-lg shadow-indigo-900/30">
+                {isGenerating ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} fill="currentColor" />}
+                Generate
             </button>
          </div>
       </div>
