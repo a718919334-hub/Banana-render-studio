@@ -1,0 +1,5 @@
+{
+  "name": "Banana Render Studio",
+  "description": "A full-stack architecture demo for 3D asset generation using Google Cloud Platform ecosystem (Firebase, Cloud Functions, Cloud Storage) and React Three Fiber.",
+  "requestFramePermissions": []
+}
