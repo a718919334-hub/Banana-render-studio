@@ -12,7 +12,7 @@ const Vector3Input = ({ label, value, onChange, disabled }: { label: string, val
 
      return (
         <div className={`flex flex-col gap-2 mb-4 ${disabled ? 'opacity-50 pointer-events-none' : ''}`}>
-            <span className="text-[10px] text-zinc-500 uppercase font-bold tracking-wider pl-1">{label}</span>
+            <span className="text-[10px] text-zinc-400 uppercase font-bold tracking-wider pl-1">{label}</span>
             <div className="flex gap-2">
                 {['X', 'Y', 'Z'].map((axis, i) => (
                     <div key={axis} className="relative flex-1 group">
@@ -25,7 +25,7 @@ const Vector3Input = ({ label, value, onChange, disabled }: { label: string, val
                             type="number" step="0.1" 
                             value={value[i].toFixed(2)} 
                             onChange={(e) => updateVal(i, e.target.value)}
-                            className="w-full bg-[#09090b] border border-white/10 rounded-md text-xs text-zinc-200 pl-6 py-1.5 focus:border-indigo-500 focus:bg-[#09090b] focus:outline-none transition-all font-mono" 
+                            className="w-full bg-[#09090b] border border-white/10 rounded-md text-xs text-zinc-100 pl-6 py-1.5 focus:border-indigo-500 focus:bg-[#09090b] focus:outline-none transition-all font-mono" 
                         />
                     </div>
                 ))}
@@ -41,10 +41,10 @@ const SceneItem = ({ id, label, icon: Icon, active, onClick, onDelete }: any) =>
         className={`group flex items-center gap-2.5 px-3 py-2 cursor-pointer text-xs rounded-lg mx-2 mb-1 transition-all border ${
             active 
             ? 'bg-indigo-500/10 border-indigo-500/20 text-indigo-300' 
-            : 'border-transparent text-zinc-500 hover:bg-[#27272a] hover:text-zinc-200'
+            : 'border-transparent text-zinc-400 hover:bg-[#27272a] hover:text-zinc-100'
         }`}
     >
-        <Icon size={14} className={active ? 'text-indigo-400' : 'opacity-50'} /> 
+        <Icon size={14} className={active ? 'text-indigo-400' : 'opacity-50 group-hover:opacity-80'} /> 
         <span className="flex-1 truncate font-bold">{label}</span>
         {onDelete && (
             <button 
@@ -83,12 +83,12 @@ export default function RendererPanel() {
   const selectedObject = sceneObjects.find(obj => obj.id === selectedObjectId);
 
   return (
-    <div className="flex flex-col h-full text-zinc-400 select-none bg-[#18181b]">
+    <div className="flex flex-col h-full text-zinc-300 select-none bg-[#18181b]">
       
       {/* --- TOP SECTION: SCENE GRAPH --- */}
       <div className="flex-1 flex flex-col min-h-0 border-b border-white/5">
           <div className="flex items-center justify-between px-4 py-3 border-b border-white/5 bg-[#18181b]">
-             <div className="flex items-center gap-2 text-xs font-bold text-zinc-200 tracking-wide">
+             <div className="flex items-center gap-2 text-xs font-bold text-zinc-100 tracking-wide">
                 <Layers size={14} className="text-indigo-500" />
                 SCENE GRAPH
              </div>
@@ -98,7 +98,7 @@ export default function RendererPanel() {
           </div>
           
           <div className="flex-1 overflow-y-auto py-2 custom-scrollbar bg-[#131315]">
-             <div className="px-4 pb-2 pt-2 text-[10px] font-bold text-zinc-600 uppercase tracking-widest">Environment</div>
+             <div className="px-4 pb-2 pt-2 text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Environment</div>
              
              {/* Global Environment & Tools */}
              <SceneItem 
@@ -123,7 +123,7 @@ export default function RendererPanel() {
                 onClick={() => setSelectedObjectId('camera')}
              />
 
-             <div className="px-4 pt-4 pb-2 text-[10px] font-bold text-zinc-600 uppercase tracking-widest flex justify-between items-center">
+             <div className="px-4 pt-4 pb-2 text-[10px] font-bold text-zinc-500 uppercase tracking-widest flex justify-between items-center">
                  <span>Objects ({sceneObjects.length})</span>
              </div>
              
@@ -140,7 +140,7 @@ export default function RendererPanel() {
                      />
                  ))
              ) : (
-                <div className="px-5 py-2 text-xs text-zinc-600 italic">
+                <div className="px-5 py-2 text-xs text-zinc-500 italic">
                     Scene is empty
                 </div>
              )}
@@ -151,12 +151,12 @@ export default function RendererPanel() {
       <div className="h-[55%] flex flex-col bg-[#18181b]">
         <div className="flex items-center px-4 py-3 border-b border-white/5 bg-[#18181b]">
              <Sliders size={14} className="text-indigo-500 mr-2" />
-             <span className="text-xs font-bold text-zinc-200 tracking-wide">PROPERTIES</span>
+             <span className="text-xs font-bold text-zinc-100 tracking-wide">PROPERTIES</span>
         </div>
 
         <div className="flex-1 overflow-y-auto p-5 custom-scrollbar">
             {!selectedObjectId && (
-                <div className="flex flex-col items-center justify-center h-full text-zinc-600 space-y-3 opacity-60">
+                <div className="flex flex-col items-center justify-center h-full text-zinc-500 space-y-3 opacity-80">
                     <Globe size={32} strokeWidth={1.5} />
                     <span className="text-xs">Select an object to edit</span>
                 </div>
@@ -176,7 +176,7 @@ export default function RendererPanel() {
                                  selectedObject.type === 'camera' ? <Video size={14} /> :
                                  <Box size={14} />}
                             </div>
-                            <span className="text-sm font-bold text-zinc-200 truncate max-w-[120px]">{selectedObject.name}</span>
+                            <span className="text-sm font-bold text-zinc-100 truncate max-w-[120px]">{selectedObject.name}</span>
                         </div>
                         {/* Lock Toggle */}
                         <button 
@@ -235,7 +235,7 @@ export default function RendererPanel() {
                     {/* Light Specific Properties */}
                     {selectedObject.type === 'light' && selectedObject.lightProps && (
                         <div className="p-4 bg-[#09090b] rounded-lg border border-white/5 space-y-4">
-                             <div className="flex justify-between text-xs font-medium text-zinc-500">
+                             <div className="flex justify-between text-xs font-medium text-zinc-400">
                                 <span>Intensity</span>
                                 <span className="font-mono text-indigo-400 font-bold">{selectedObject.lightProps.intensity.toFixed(1)}</span>
                             </div>
@@ -249,7 +249,7 @@ export default function RendererPanel() {
                                 className="w-full h-1.5 bg-zinc-800 rounded-full appearance-none cursor-pointer accent-indigo-500"
                             />
 
-                             <div className="flex justify-between text-xs font-medium text-zinc-500 pt-2">
+                             <div className="flex justify-between text-xs font-medium text-zinc-400 pt-2">
                                 <span>Color</span>
                             </div>
                             <div className="flex items-center gap-3">
@@ -263,7 +263,7 @@ export default function RendererPanel() {
                                         className="absolute -top-1/2 -left-1/2 w-[200%] h-[200%] cursor-pointer p-0 border-0"
                                     />
                                 </div>
-                                <span className="text-xs font-mono text-zinc-400 uppercase font-bold">{selectedObject.lightProps.color}</span>
+                                <span className="text-xs font-mono text-zinc-300 uppercase font-bold">{selectedObject.lightProps.color}</span>
                             </div>
                         </div>
                     )}
@@ -271,7 +271,7 @@ export default function RendererPanel() {
                     {/* Camera Specific Properties */}
                     {selectedObject.type === 'camera' && selectedObject.cameraProps && (
                          <div className="p-4 bg-[#09090b] rounded-lg border border-white/5 space-y-4">
-                            <div className="flex justify-between text-xs font-medium text-zinc-500">
+                            <div className="flex justify-between text-xs font-medium text-zinc-400">
                                 <span>Field of View</span>
                                 <span className="font-mono text-indigo-400 font-bold">{selectedObject.cameraProps.fov.toFixed(0)}°</span>
                             </div>
@@ -296,12 +296,12 @@ export default function RendererPanel() {
                         <div className="p-1.5 rounded-lg bg-orange-900/30 text-orange-500">
                             <Sun size={14} />
                         </div>
-                        <span className="text-sm font-bold text-zinc-200">Environment</span>
+                        <span className="text-sm font-bold text-zinc-100">Environment</span>
                     </div>
                     
                     <div className="p-4 bg-[#09090b] rounded-lg border border-white/5">
-                        <span className="text-xs font-bold text-zinc-500 block mb-3 uppercase tracking-wider">Preset</span>
-                        <select className="w-full bg-[#18181b] border border-white/10 text-xs text-zinc-300 p-2 rounded outline-none focus:border-indigo-500 transition-all">
+                        <span className="text-xs font-bold text-zinc-400 block mb-3 uppercase tracking-wider">Preset</span>
+                        <select className="w-full bg-[#18181b] border border-white/10 text-xs text-zinc-200 p-2 rounded outline-none focus:border-indigo-500 transition-all">
                             <option>Studio (Default)</option>
                             <option>City</option>
                             <option>Park</option>
@@ -318,7 +318,7 @@ export default function RendererPanel() {
                         <div className="p-1.5 rounded-lg bg-zinc-800 text-zinc-400">
                             <GridIcon size={14} />
                         </div>
-                        <span className="text-sm font-bold text-zinc-200">Grid System</span>
+                        <span className="text-sm font-bold text-zinc-100">Grid System</span>
                     </div>
                     
                     <div className="flex items-center justify-between p-4 bg-[#09090b] rounded-lg border border-white/5">
@@ -340,7 +340,7 @@ export default function RendererPanel() {
                         <div className="p-1.5 rounded-lg bg-purple-900/30 text-purple-500">
                             <Video size={14} />
                         </div>
-                        <span className="text-sm font-bold text-zinc-200">Editor View</span>
+                        <span className="text-sm font-bold text-zinc-100">Editor View</span>
                     </div>
                     
                     <div className="p-3 bg-indigo-900/10 border border-indigo-500/20 rounded-lg text-[10px] leading-relaxed text-indigo-300 font-medium">
@@ -360,7 +360,7 @@ export default function RendererPanel() {
                     />
 
                     <div>
-                        <div className="flex justify-between text-xs font-medium text-zinc-500 mb-2">
+                        <div className="flex justify-between text-xs font-medium text-zinc-400 mb-2">
                             <span>Field of View</span>
                             <span className="font-mono text-indigo-400 font-bold">{cameraState.fov.toFixed(0)}°</span>
                         </div>

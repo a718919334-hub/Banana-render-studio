@@ -95,8 +95,18 @@ export default function App() {
             <AssetManager />
         </div>
         
-        {/* Middle Panel: 3D Viewport (WORKBENCH - Radial Gradient Background) */}
-        <div className="flex-1 flex flex-col bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-zinc-700 via-[#09090b] to-black overflow-hidden relative shadow-inner shadow-black">
+        {/* Middle Panel: 3D Viewport (WORKBENCH) */}
+        {/* 
+            工作台背景样式：摄影棚暗角效果 (Studio Vignette)
+            
+            可替换色值说明 (Replaceable Color Values):
+            1. from-zinc-800 : 中心高光颜色 (Center Highlight). 建议范围: zinc-700 ~ zinc-900
+            2. via-[#09090b] : 中间过渡色 (Mid-tone). 通常保持与主背景一致
+            3. to-black      : 边缘暗角颜色 (Edge Shadow). 保持纯黑以增强深度
+            
+            修改下方的 className 即可调整光影氛围:
+        */}
+        <div className="flex-1 flex flex-col bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-zinc-600/50 -zinc-800 to-zinc-1000">
             <SceneViewer />
         </div>
         

@@ -24,7 +24,7 @@ export default function Toolbar() {
       className={`relative w-9 h-9 rounded-lg transition-all flex items-center justify-center group ${
         active 
           ? 'bg-[#27272a] text-white border border-white/10 shadow-inner' 
-          : 'text-zinc-500 hover:text-zinc-200 hover:bg-[#27272a] border border-transparent hover:border-white/5'
+          : 'text-zinc-400 hover:text-zinc-200 hover:bg-[#27272a] border border-transparent hover:border-white/5'
       } ${disabled ? 'opacity-30 cursor-not-allowed hover:bg-transparent hover:border-transparent' : ''}`}
     >
       {children}

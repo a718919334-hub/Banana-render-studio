@@ -11,6 +11,26 @@ import { createTextTo3DTask, pollTripoTask } from '../services/tripoService';
 import { generateRefinedImage, optimizePromptFor3D } from '../services/geminiService';
 import Toolbar from './Toolbar';
 
+// Fix for missing React Three Fiber types in strict environments
+declare global {
+  namespace JSX {
+    interface IntrinsicElements {
+      ambientLight: any;
+      boxGeometry: any;
+      circleGeometry: any;
+      cylinderGeometry: any;
+      directionalLight: any;
+      group: any;
+      hemisphereLight: any;
+      mesh: any;
+      meshBasicMaterial: any;
+      meshStandardMaterial: any;
+      primitive: any;
+      sphereGeometry: any;
+    }
+  }
+}
+
 // --- Configuration ---
 const DRACO_URL = 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/libs/draco/gltf/';
 
@@ -530,26 +550,36 @@ const ViewportCapturer = ({ captureRef }: { captureRef: React.MutableRefObject<a
     return null;
 }
 
+// 渲染窗口组件 (Render Window Component)
+// 这是一个模态对话框，用于处理 AI 渲染请求
 const RenderWindow = ({ onClose, onCaptureRequest }: any) => {
     const { addNotification } = useAppStore();
+    // 渲染结果图片的 URL (Rendered result image URL)
     const [renderResult, setRenderResult] = useState<string | null>(null);
+    // 基础截图 (Base screenshot from the 3D viewport)
     const [baseImage, setBaseImage] = useState<string | null>(null);
+    // 渲染状态 (Rendering loading state)
     const [isRendering, setIsRendering] = useState(false);
+    // 提示词输入 (Prompt input)
     const [prompt, setPrompt] = useState("");
+    // 选中的分辨率预设索引 (Selected resolution/aspect ratio preset index)
     const [selectedPresetIdx, setSelectedPresetIdx] = useState(0);
 
+    // 初始化时获取视口截图 (Capture viewport on mount)
     useEffect(() => {
         if (onCaptureRequest && !baseImage) {
             setBaseImage(onCaptureRequest());
         }
     }, [onCaptureRequest, baseImage]);
 
+    // 处理渲染点击事件 (Handle render button click)
     const handleRender = async () => {
         if (!prompt.trim()) addNotification('info', '建议输入提示词以获得更好的风格化效果');
         setIsRendering(true);
         const preset = RESOLUTION_PRESETS[selectedPresetIdx];
         try {
             if (!baseImage) throw new Error("无法获取场景截图");
+            // 调用 Gemini 服务生成精炼图像
             const resultUrl = await generateRefinedImage({
                 prompt: prompt,
                 referenceImage: baseImage,
@@ -566,20 +596,28 @@ const RenderWindow = ({ onClose, onCaptureRequest }: any) => {
     };
 
     return (
+        // 遮罩层 (Overlay/Backdrop)
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 animate-in fade-in duration-300">
-            <div className="w-[900px] h-[600px] bg-[#18181b] border border-white/10 rounded-xl shadow-2xl flex flex-col overflow-hidden relative">
-                <div className="h-14 bg-[#18181b] flex items-center justify-between px-6 border-b border-white/5 shrink-0">
+            {/* 对话框主体 (Dialog Body) - Brightened background and border */}
+            <div className="w-[900px] h-[600px] bg-[#27272a] border border-white/20 rounded-xl shadow-2xl flex flex-col overflow-hidden relative ring-1 ring-white/10">
+                {/* 标题栏 (Header) - Brightened background */}
+                <div className="h-14 bg-[#27272a] flex items-center justify-between px-6 border-b border-white/10 shrink-0">
                     <div className="flex items-center gap-2 text-white font-bold tracking-wide">
                         <div className="p-1.5 rounded-lg bg-indigo-500/20 text-indigo-400"><Aperture size={16}/></div>
                         <span>AI Render Studio</span>
                         <span className="text-[10px] bg-indigo-600 text-white px-2 py-0.5 rounded-full font-bold ml-2">Gemini 2.5 Flash</span>
                     </div>
+                    {/* 关闭按钮 (Close Button) */}
                     <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-full text-zinc-400 hover:text-white transition"><X size={18}/></button>
                 </div>
+                
+                {/* 内容区域 (Content Area) */}
                 <div className="flex-1 flex min-h-0">
+                    {/* 左侧：图片预览区 (Left: Image Preview) */}
                     <div className="flex-1 bg-black relative p-6 flex items-center justify-center">
                          <div className="absolute inset-0 opacity-20" style={{ backgroundImage: 'radial-gradient(circle at center, #1e1b4b 0%, transparent 70%)' }} />
                          <div className="relative max-w-full max-h-full shadow-lg z-10 rounded-lg overflow-hidden border border-white/10 bg-black">
+                             {/* 显示结果或基础截图 (Show Result or Base Image) */}
                              {renderResult ? (
                                 <img src={renderResult} className="max-w-full max-h-full object-contain" alt="Result" />
                              ) : baseImage ? (
@@ -587,6 +625,8 @@ const RenderWindow = ({ onClose, onCaptureRequest }: any) => {
                              ) : (
                                 <Loader2 className="animate-spin text-zinc-600"/>
                              )}
+                             
+                             {/* 加载中遮罩 (Loading Overlay) */}
                              {isRendering && (
                                  <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center text-white z-20">
                                      <div className="relative">
@@ -597,28 +637,35 @@ const RenderWindow = ({ onClose, onCaptureRequest }: any) => {
                              )}
                          </div>
                     </div>
-                    <div className="w-80 bg-[#18181b] border-l border-white/5 flex flex-col p-6 gap-6 overflow-y-auto">
+
+                    {/* 右侧：设置面板 (Right: Settings Panel) - Brightened background */}
+                    <div className="w-80 bg-[#27272a] border-l border-white/10 flex flex-col p-6 gap-6 overflow-y-auto">
+                        {/* 比例选择 (Aspect Ratio Selection) */}
                         <div>
-                            <label className="text-xs font-bold text-zinc-400 mb-3 flex items-center gap-2 uppercase tracking-wider"><Ratio size={12} /> Aspect Ratio</label>
+                            <label className="text-xs font-bold text-zinc-300 mb-3 flex items-center gap-2 uppercase tracking-wider"><Ratio size={12} /> Aspect Ratio</label>
                             <div className="grid grid-cols-2 gap-2">
                                 {RESOLUTION_PRESETS.map((preset, idx) => (
-                                    <button key={idx} onClick={() => setSelectedPresetIdx(idx)} className={`flex flex-col items-center justify-center p-3 rounded-lg border transition-all ${selectedPresetIdx === idx ? 'bg-indigo-500/10 border-indigo-500/30 text-indigo-400 shadow-sm' : 'bg-[#27272a] border-white/5 text-zinc-500 hover:bg-[#3f3f46] hover:text-zinc-200'}`}>
+                                    <button key={idx} onClick={() => setSelectedPresetIdx(idx)} className={`flex flex-col items-center justify-center p-3 rounded-lg border transition-all ${selectedPresetIdx === idx ? 'bg-indigo-500/20 border-indigo-500/50 text-indigo-300 shadow-sm' : 'bg-[#3f3f46] border-white/5 text-zinc-300 hover:bg-[#52525b] hover:text-white'}`}>
                                         <div className="text-xs font-bold mb-1">{preset.ratio}</div>
                                         <div className="text-[10px] opacity-60">{preset.label}</div>
                                     </button>
                                 ))}
                             </div>
                         </div>
+
+                        {/* 提示词输入 (Prompt Input) */}
                         <div className="flex-1">
-                            <label className="text-xs font-bold text-zinc-400 mb-3 flex items-center gap-2 uppercase tracking-wider"><Wand2 size={12} /> Prompt</label>
-                            <textarea value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="Describe the style (e.g. Cyberpunk, Claymation, Realistic)..." className="w-full h-32 bg-[#09090b] border border-white/10 rounded-lg p-4 text-sm text-zinc-200 focus:outline-none focus:border-indigo-500 focus:bg-[#000] resize-none transition-all placeholder:text-zinc-600" />
+                            <label className="text-xs font-bold text-zinc-300 mb-3 flex items-center gap-2 uppercase tracking-wider"><Wand2 size={12} /> Prompt</label>
+                            <textarea value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="Describe the style (e.g. Cyberpunk, Claymation, Realistic)..." className="w-full h-32 bg-[#18181b] border border-white/10 rounded-lg p-4 text-sm text-zinc-200 focus:outline-none focus:border-indigo-500 focus:bg-[#000] resize-none transition-all placeholder:text-zinc-500" />
                         </div>
+
+                        {/* 底部操作按钮 (Action Buttons) */}
                         <div className="mt-auto flex flex-col gap-3">
                             <button onClick={handleRender} disabled={isRendering} className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl shadow-lg shadow-indigo-900/40 disabled:opacity-50 flex items-center justify-center gap-2 transition-all hover:translate-y-[-1px]">
                                 <Sparkles size={16} fill="currentColor" /> {isRendering ? 'Rendering...' : 'Generate Render'}
                             </button>
                             {renderResult && (
-                                <a href={renderResult} download={`render-${Date.now()}.png`} className="w-full py-2.5 bg-[#27272a] hover:bg-[#3f3f46] text-zinc-200 font-bold rounded-xl border border-white/5 flex items-center justify-center gap-2 transition-all"><Download size={14} /> Save Image</a>
+                                <a href={renderResult} download={`render-${Date.now()}.png`} className="w-full py-2.5 bg-[#3f3f46] hover:bg-[#52525b] text-zinc-200 font-bold rounded-xl border border-white/10 flex items-center justify-center gap-2 transition-all"><Download size={14} /> Save Image</a>
                             )}
                         </div>
                     </div>
@@ -716,7 +763,7 @@ export default function SceneViewer() {
       
       {/* --- Left Top: Render Button (Dark Grey Layer) --- */}
       <div className="absolute top-20 left-4 z-10 pointer-events-auto">
-         <button onClick={() => setShowRenderWindow(!showRenderWindow)} className="group bg-[#18181b] p-3 rounded-2xl border border-white/5 shadow-lg shadow-black/20 text-zinc-400 hover:text-white hover:border-indigo-500/30 transition-all flex items-center gap-3">
+         <button onClick={() => setShowRenderWindow(!showRenderWindow)} className="group bg-[#18181b] p-3 rounded-2xl border border-white/5 shadow-lg shadow-black/20 text-zinc-300 hover:text-white hover:border-indigo-500/30 transition-all flex items-center gap-3">
             <div className="p-1.5 bg-indigo-500/10 rounded-lg text-indigo-400 group-hover:bg-indigo-500 group-hover:text-white transition-colors">
                 <Aperture size={20} />
             </div>
@@ -730,20 +777,20 @@ export default function SceneViewer() {
       {/* --- Right Top: Stats & Info (Dark Grey Layer) --- */}
       <div className="absolute top-20 right-4 z-10 pointer-events-auto flex flex-col items-end gap-3">
           {/* Stats Panel */}
-          <div className="bg-[#18181b] border border-white/5 p-4 rounded-2xl shadow-lg shadow-black/20 text-[10px] font-mono text-zinc-500 min-w-[160px] flex flex-col gap-2 select-none group hover:border-white/10 transition-colors">
+          <div className="bg-[#18181b] border border-white/5 p-4 rounded-2xl shadow-lg shadow-black/20 text-[10px] font-mono text-zinc-400 min-w-[160px] flex flex-col gap-2 select-none group hover:border-white/10 transition-colors">
              <div className="flex justify-between items-center border-b border-white/5 pb-2 mb-1 opacity-80">
                  <div className="flex items-center gap-1.5 font-sans font-bold tracking-wider text-zinc-300"><Activity size={12} className="text-emerald-500" /> STATISTICS</div>
              </div>
              <div className="flex justify-between items-center">
-                 <span className="text-zinc-600 flex items-center gap-1.5"><Layers size={12} /> Objects</span>
+                 <span className="text-zinc-500 flex items-center gap-1.5"><Layers size={12} /> Objects</span>
                  <span className="text-zinc-300 font-bold">{stats.objects}</span>
              </div>
              <div className="flex justify-between items-center">
-                 <span className="text-zinc-600 flex items-center gap-1.5"><Box size={12} /> Vertices</span>
+                 <span className="text-zinc-500 flex items-center gap-1.5"><Box size={12} /> Vertices</span>
                  <span className="text-blue-500">{stats.verts.toLocaleString()}</span>
              </div>
              <div className="flex justify-between items-center">
-                 <span className="text-zinc-600 flex items-center gap-1.5"><Triangle size={12} /> Triangles</span>
+                 <span className="text-zinc-500 flex items-center gap-1.5"><Triangle size={12} /> Triangles</span>
                  <span className="text-orange-500">{stats.tris.toLocaleString()}</span>
              </div>
           </div>
@@ -760,7 +807,7 @@ export default function SceneViewer() {
       {showRenderWindow && <RenderWindow onClose={() => setShowRenderWindow(false)} onCaptureRequest={() => captureRef.current ? captureRef.current() : null} />}
 
       {sceneObjects.length === 0 && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center text-zinc-600 z-0 pointer-events-none">
+          <div className="absolute inset-0 flex flex-col items-center justify-center text-zinc-500 z-0 pointer-events-none">
               <div className="w-24 h-24 rounded-full bg-white/5 flex items-center justify-center mb-6 border border-white/5 animate-pulse">
                   <Box size={40} className="opacity-20 text-white" />
               </div>
@@ -864,7 +911,7 @@ export default function SceneViewer() {
             <input 
                 type="text" value={prompt} onChange={(e) => setPrompt(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleTextTo3D()}
                 placeholder="Describe a 3D object to generate..."
-                className="flex-1 bg-transparent border-none py-3 px-4 text-sm text-zinc-200 focus:outline-none placeholder:text-zinc-600 font-medium"
+                className="flex-1 bg-transparent border-none py-3 px-4 text-sm text-zinc-200 focus:outline-none placeholder:text-zinc-500 font-medium"
             />
             <button onClick={handleTextTo3D} disabled={isGenerating || !prompt.trim()} className="bg-indigo-600 hover:bg-indigo-500 text-white px-6 rounded-xl font-bold text-sm flex items-center gap-2 disabled:opacity-50 transition-all shadow-lg shadow-indigo-900/30">
                 {isGenerating ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} fill="currentColor" />}
