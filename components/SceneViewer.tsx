@@ -2,7 +2,7 @@ import React, { Suspense, useEffect, useRef, useState, useMemo, ReactNode, Compo
 import { Canvas, useThree, useFrame } from '@react-three/fiber';
 import { OrbitControls, useGLTF, Grid, TransformControls, Html, useProgress, Environment, GizmoHelper, GizmoViewport, ContactShadows, Billboard, useHelper, PerspectiveCamera } from '@react-three/drei';
 import { useAppStore } from '../store/useAppStore';
-import { Zap, Loader2, Sparkles, AlertTriangle, Box, RefreshCw, Aperture, Ratio, Wand2, X, Download, Video, Lock, Layers, Triangle, Activity, MapPin, Lightbulb, ArrowRight } from 'lucide-react';
+import { Zap, Loader2, Sparkles, AlertTriangle, Box, RefreshCw, Aperture, Ratio, Wand2, X, Download, Video, Lock, Layers, Triangle, Activity, MapPin, Lightbulb, ArrowRight, Maximize2 } from 'lucide-react';
 import * as THREE from 'three';
 import { DirectionalLightHelper, CameraHelper } from 'three';
 import { v4 as uuidv4 } from 'uuid';
@@ -672,7 +672,7 @@ const RenderWindow = ({ onClose, onCaptureRequest }: any) => {
 
 
     const handleRender = async () => {
-        if (!prompt.trim()) addNotification('info', '建议输入提示词以获得更好的风格化效果');
+        if (!prompt.trim()) addNotification('info', 'Enter a prompt for better stylization results');
         setIsRendering(true);
         const preset = RESOLUTION_PRESETS[selectedPresetIdx];
         
@@ -695,7 +695,7 @@ const RenderWindow = ({ onClose, onCaptureRequest }: any) => {
         }
 
         try {
-            if (!baseImage) throw new Error("无法获取场景截图");
+            if (!baseImage) throw new Error("Unable to capture scene screenshot");
             const resultUrl = await generateRefinedImage({
                 prompt: prompt,
                 referenceImage: baseImage,
@@ -705,10 +705,10 @@ const RenderWindow = ({ onClose, onCaptureRequest }: any) => {
                 lightingInfo: lightingInfoStr // Pass lighting info to Gemini
             });
             setRenderResult(resultUrl);
-            addNotification('success', 'AI 渲染完成');
+            addNotification('success', 'AI Rendering Complete');
         } catch (e: any) {
             console.error(e);
-            addNotification('error', `渲染失败: ${e.message}`);
+            addNotification('error', `Render Failed: ${e.message}`);
         } finally {
             setIsRendering(false);
         }
@@ -716,7 +716,8 @@ const RenderWindow = ({ onClose, onCaptureRequest }: any) => {
 
     return (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm animate-fade-in-up duration-300">
-            <div className="w-[1024px] h-[700px] bg-[#27272a] border border-white/20 rounded-xl shadow-2xl flex flex-col overflow-hidden relative ring-1 ring-white/10 animate-pop-in">
+            {/* ENLARGED WINDOW DIMENSIONS */}
+            <div className="w-[90vw] h-[90vh] max-w-[1600px] max-h-[1000px] bg-[#27272a] border border-white/20 rounded-xl shadow-2xl flex flex-col overflow-hidden relative ring-1 ring-white/10 animate-pop-in">
                 <div className="h-14 bg-[#27272a] flex items-center justify-between px-6 border-b border-white/10 shrink-0">
                     <div className="flex items-center gap-2 text-white font-bold tracking-wide">
                         <div className="p-1.5 rounded-lg bg-indigo-500/20 text-indigo-400"><Aperture size={16}/></div>
@@ -749,117 +750,123 @@ const RenderWindow = ({ onClose, onCaptureRequest }: any) => {
                          </div>
                     </div>
 
-                    <div className="w-[440px] bg-[#27272a] border-l border-white/10 flex flex-col p-6 gap-6 overflow-y-auto">
+                    {/* UPDATED SIDEBAR STRUCTURE: FIXED FOOTER, SCROLLABLE CONTENT */}
+                    <div className="w-[480px] bg-[#27272a] border-l border-white/10 flex flex-col shrink-0">
                         
-                        {/* Camera Context Display */}
-                        <div className="p-3 bg-black/20 rounded-lg border border-white/5 animate-slide-in-right stagger-1">
-                            <label className="text-[10px] font-bold text-zinc-500 mb-2 flex items-center gap-2 uppercase tracking-wider">
-                                <MapPin size={10} /> Camera Context
-                            </label>
-                            <div className="grid grid-cols-2 gap-y-1 text-[10px] font-mono text-zinc-300">
-                                <span className="text-zinc-500">Mode:</span>
-                                <span className="text-indigo-400 font-bold">{activeCameraId ? "Scene Camera" : "Editor View"}</span>
-                                
-                                <span className="text-zinc-500">FOV:</span>
-                                <span>{camDisplayInfo.fov.toFixed(0)}°</span>
-                                
-                                <span className="text-zinc-500">Pos:</span>
-                                <span className="truncate" title={camDisplayInfo.pos}>{camDisplayInfo.pos}</span>
-                                
-                                <span className="text-zinc-500">Dir:</span>
-                                <span className="truncate" title={camDisplayInfo.rot}>{camDisplayInfo.rot}</span>
+                        {/* Scrollable Content Area */}
+                        <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-6 custom-scrollbar">
+                            
+                            {/* Camera Context Display */}
+                            <div className="p-3 bg-black/20 rounded-lg border border-white/5 animate-slide-in-right stagger-1 shrink-0">
+                                <label className="text-[10px] font-bold text-zinc-500 mb-2 flex items-center gap-2 uppercase tracking-wider">
+                                    <MapPin size={10} /> Camera Context
+                                </label>
+                                <div className="grid grid-cols-2 gap-y-1 text-[10px] font-mono text-zinc-300">
+                                    <span className="text-zinc-500">Mode:</span>
+                                    <span className="text-indigo-400 font-bold">{activeCameraId ? "Scene Camera" : "Editor View"}</span>
+                                    
+                                    <span className="text-zinc-500">FOV:</span>
+                                    <span>{camDisplayInfo.fov.toFixed(0)}°</span>
+                                    
+                                    <span className="text-zinc-500">Pos:</span>
+                                    <span className="truncate" title={camDisplayInfo.pos}>{camDisplayInfo.pos}</span>
+                                    
+                                    <span className="text-zinc-500">Dir:</span>
+                                    <span className="truncate" title={camDisplayInfo.rot}>{camDisplayInfo.rot}</span>
+                                </div>
                             </div>
-                        </div>
 
-                         {/* Scene Lighting Display */}
-                         <div className="p-3 bg-black/20 rounded-lg border border-white/5 animate-slide-in-right stagger-1 mt-2">
-                            <label className="text-[10px] font-bold text-zinc-500 mb-2 flex items-center gap-2 uppercase tracking-wider">
-                                <Zap size={10} /> Scene Lighting
-                            </label>
-                            <div className="text-[10px] font-mono text-zinc-300">
-                                {sceneObjects.filter(o => o.type === 'light' && o.visible).length > 0 ? (
-                                    <div className="flex flex-col gap-1">
-                                        {sceneObjects.filter(o => o.type === 'light' && o.visible).map((l, i) => (
-                                            <div key={l.id} className="flex justify-between items-center bg-white/5 px-2 py-1 rounded">
-                                                <span>Light {i+1}</span>
-                                                <div className="flex items-center gap-2">
-                                                    <div className="w-2 h-2 rounded-full" style={{backgroundColor: l.lightProps?.color || '#fff'}}></div>
-                                                    <span className="text-zinc-500">{l.lightProps?.intensity.toFixed(1)}x</span>
+                             {/* Scene Lighting Display */}
+                             <div className="p-3 bg-black/20 rounded-lg border border-white/5 animate-slide-in-right stagger-1 shrink-0">
+                                <label className="text-[10px] font-bold text-zinc-500 mb-2 flex items-center gap-2 uppercase tracking-wider">
+                                    <Zap size={10} /> Scene Lighting
+                                </label>
+                                <div className="text-[10px] font-mono text-zinc-300">
+                                    {sceneObjects.filter(o => o.type === 'light' && o.visible).length > 0 ? (
+                                        <div className="flex flex-col gap-1">
+                                            {sceneObjects.filter(o => o.type === 'light' && o.visible).map((l, i) => (
+                                                <div key={l.id} className="flex justify-between items-center bg-white/5 px-2 py-1 rounded">
+                                                    <span>Light {i+1}</span>
+                                                    <div className="flex items-center gap-2">
+                                                        <div className="w-2 h-2 rounded-full" style={{backgroundColor: l.lightProps?.color || '#fff'}}></div>
+                                                        <span className="text-zinc-500">{l.lightProps?.intensity.toFixed(1)}x</span>
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                ) : (
-                                    <span className="text-zinc-600 italic">Default Environment</span>
-                                )}
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <span className="text-zinc-600 italic">Default Environment</span>
+                                    )}
+                                </div>
                             </div>
-                        </div>
 
-                        {/* Aspect Ratio */}
-                        <div className="animate-slide-in-right stagger-2">
-                            <label className="text-xs font-bold text-zinc-300 mb-3 flex items-center gap-2 uppercase tracking-wider"><Ratio size={12} /> Aspect Ratio</label>
-                            <div className="grid grid-cols-2 gap-2">
-                                {RESOLUTION_PRESETS.map((preset, idx) => (
-                                    <button key={idx} onClick={() => setSelectedPresetIdx(idx)} className={`flex flex-col items-center justify-center p-3 rounded-lg border transition-all duration-300 ease-silky hover:scale-[1.02] active:scale-[0.98] ${selectedPresetIdx === idx ? 'bg-indigo-500/20 border-indigo-500/50 text-indigo-300 shadow-sm' : 'bg-[#3f3f46] border-white/5 text-zinc-300 hover:bg-[#52525b] hover:text-white'}`}>
-                                        <div className="text-xs font-bold mb-1">{preset.ratio}</div>
-                                        <div className="text-[10px] opacity-60">{preset.label}</div>
-                                    </button>
-                                ))}
+                            {/* Aspect Ratio */}
+                            <div className="animate-slide-in-right stagger-2 shrink-0">
+                                <label className="text-xs font-bold text-zinc-300 mb-3 flex items-center gap-2 uppercase tracking-wider"><Ratio size={12} /> Aspect Ratio</label>
+                                <div className="grid grid-cols-2 gap-2">
+                                    {RESOLUTION_PRESETS.map((preset, idx) => (
+                                        <button key={idx} onClick={() => setSelectedPresetIdx(idx)} className={`flex flex-col items-center justify-center p-3 rounded-lg border transition-all duration-300 ease-silky hover:scale-[1.02] active:scale-[0.98] ${selectedPresetIdx === idx ? 'bg-indigo-500/20 border-indigo-500/50 text-indigo-300 shadow-sm' : 'bg-[#3f3f46] border-white/5 text-zinc-300 hover:bg-[#52525b] hover:text-white'}`}>
+                                            <div className="text-xs font-bold mb-1">{preset.ratio}</div>
+                                            <div className="text-[10px] opacity-60">{preset.label}</div>
+                                        </button>
+                                    ))}
+                                </div>
                             </div>
-                        </div>
 
-                        {/* Prompt & AI Suggestions Area (Side by Side) */}
-                        <div className="flex-1 flex flex-col min-h-0 animate-slide-in-right stagger-3">
-                             <div className="flex items-center justify-between mb-2">
-                                <label className="text-xs font-bold text-zinc-300 flex items-center gap-2 uppercase tracking-wider"><Wand2 size={12} /> Prompt</label>
-                                {isAnalyzing && <span className="text-[10px] text-zinc-500 animate-pulse flex items-center gap-1"><Loader2 size={10} className="animate-spin"/> Analyzing Scene...</span>}
-                             </div>
-
-                             <div className="flex gap-3 h-48">
-                                 {/* Prompt Input */}
-                                 <textarea 
-                                    value={prompt} 
-                                    onChange={(e) => setPrompt(e.target.value)} 
-                                    placeholder="Describe the style (e.g. Cyberpunk, Claymation, Realistic)..." 
-                                    className="flex-1 bg-[#18181b] border border-white/10 rounded-lg p-3 text-sm text-zinc-200 focus:outline-none focus:border-indigo-500 focus:bg-[#000] resize-none transition-all duration-300 placeholder:text-zinc-600 h-full focus:shadow-[0_0_15px_rgba(99,102,241,0.1)]" 
-                                />
-
-                                 {/* Suggestions List (Right Side) */}
-                                 <div className="w-40 flex flex-col gap-2 overflow-y-auto pr-1 custom-scrollbar">
-                                     <div className="sticky top-0 bg-[#27272a] pb-1 z-10">
-                                         <label className="text-[10px] font-bold text-zinc-500 flex items-center gap-1 uppercase tracking-wider">
-                                             <Lightbulb size={10} className="text-yellow-500" /> Ideas
-                                         </label>
-                                     </div>
-                                     
-                                     {isAnalyzing && suggestedPrompts.length === 0 ? (
-                                         [1, 2, 3].map(i => <div key={i} className="h-12 bg-white/5 rounded-lg animate-pulse shrink-0" />)
-                                     ) : (
-                                        suggestedPrompts.length > 0 ? suggestedPrompts.map((s, i) => (
-                                             <button 
-                                                 key={i}
-                                                 onClick={() => setPrompt(s)}
-                                                 className="text-left text-[10px] p-2 bg-[#18181b] border border-white/5 hover:border-indigo-500/50 hover:bg-indigo-500/10 rounded-lg text-zinc-400 hover:text-indigo-200 transition-all duration-200 leading-tight shrink-0 group relative hover:scale-[1.02]"
-                                                 title={s}
-                                             >
-                                                 <span className="line-clamp-3 group-hover:line-clamp-none transition-all">{s}</span>
-                                                 <div className="absolute right-1 bottom-1 opacity-0 group-hover:opacity-100 text-indigo-400 transition-opacity">
-                                                     <ArrowRight size={8} />
-                                                 </div>
-                                             </button>
-                                         )) : (
-                                            <div className="text-[10px] text-zinc-600 italic text-center py-4 border border-dashed border-white/5 rounded-lg">
-                                                No suggestions
-                                            </div>
-                                         )
-                                     )}
+                            {/* Prompt & AI Suggestions Area */}
+                            <div className="flex flex-col shrink-0 animate-slide-in-right stagger-3 gap-2">
+                                 <div className="flex items-center justify-between">
+                                    <label className="text-xs font-bold text-zinc-300 flex items-center gap-2 uppercase tracking-wider"><Wand2 size={12} /> Prompt</label>
+                                    {isAnalyzing && <span className="text-[10px] text-zinc-500 animate-pulse flex items-center gap-1"><Loader2 size={10} className="animate-spin"/> Analyzing Scene...</span>}
                                  </div>
-                             </div>
+
+                                 <div className="flex gap-3 min-h-[160px] h-48">
+                                     {/* Prompt Input */}
+                                     <textarea 
+                                        value={prompt} 
+                                        onChange={(e) => setPrompt(e.target.value)} 
+                                        placeholder="Enter prompt..." 
+                                        className="flex-1 bg-[#18181b] border border-white/10 rounded-lg p-3 text-sm text-zinc-200 focus:outline-none focus:border-indigo-500 focus:bg-[#000] resize-none transition-all duration-300 placeholder:text-zinc-600 h-full focus:shadow-[0_0_15px_rgba(99,102,241,0.1)]" 
+                                    />
+
+                                     {/* Suggestions List (Right Side) */}
+                                     <div className="w-48 flex flex-col gap-2 overflow-y-auto pr-1 custom-scrollbar bg-black/10 rounded-lg border border-white/5 p-2">
+                                         <div className="sticky top-0 pb-1 z-10 border-b border-white/5 mb-1">
+                                             <label className="text-[10px] font-bold text-zinc-500 flex items-center gap-1 uppercase tracking-wider">
+                                                 <Lightbulb size={10} className="text-yellow-500" /> Ideas
+                                             </label>
+                                         </div>
+                                         
+                                         {isAnalyzing && suggestedPrompts.length === 0 ? (
+                                             [1, 2, 3].map(i => <div key={i} className="h-12 bg-white/5 rounded-lg animate-pulse shrink-0" />)
+                                         ) : (
+                                            suggestedPrompts.length > 0 ? suggestedPrompts.map((s, i) => (
+                                                 <button 
+                                                     key={i}
+                                                     onClick={() => setPrompt(s)}
+                                                     className="text-left text-[10px] p-2 bg-[#18181b] border border-white/5 hover:border-indigo-500/50 hover:bg-indigo-500/10 rounded-lg text-zinc-400 hover:text-indigo-200 transition-all duration-200 leading-tight shrink-0 group relative hover:scale-[1.02]"
+                                                     title={s}
+                                                 >
+                                                     <span className="line-clamp-3 group-hover:line-clamp-none transition-all">{s}</span>
+                                                     <div className="absolute right-1 bottom-1 opacity-0 group-hover:opacity-100 text-indigo-400 transition-opacity">
+                                                         <ArrowRight size={8} />
+                                                     </div>
+                                                 </button>
+                                             )) : (
+                                                <div className="text-[10px] text-zinc-600 italic text-center py-4 border border-dashed border-white/5 rounded-lg">
+                                                    No suggestions
+                                                </div>
+                                             )
+                                         )}
+                                     </div>
+                                 </div>
+                            </div>
                         </div>
 
-                        <div className="mt-auto flex flex-col gap-3 pt-4 border-t border-white/5 animate-slide-in-right stagger-4">
+                        {/* Sticky Footer for Actions */}
+                        <div className="p-6 border-t border-white/10 bg-[#27272a] flex flex-col gap-3 shrink-0 z-10">
                             <button onClick={handleRender} disabled={isRendering} className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl shadow-lg shadow-indigo-900/40 disabled:opacity-50 flex items-center justify-center gap-2 transition-all duration-300 hover:scale-[1.02] active:scale-[0.98]">
-                                <Sparkles size={16} fill="currentColor" /> {isRendering ? 'Rendering...' : 'Generate Render'}
+                                <Sparkles size={16} fill="currentColor" /> {isRendering ? 'Rendering...' : 'Render'}
                             </button>
                             {renderResult && (
                                 <a href={renderResult} download={`render-${Date.now()}.png`} className="w-full py-2.5 bg-[#3f3f46] hover:bg-[#52525b] text-zinc-200 font-bold rounded-xl border border-white/10 flex items-center justify-center gap-2 transition-all hover:scale-[1.02]"><Download size={14} /> Save Image</a>
@@ -1135,7 +1142,7 @@ export default function SceneViewer() {
          <div className="bg-[#18181b]/80 backdrop-blur-md border border-white/5 p-2 rounded-2xl shadow-lg shadow-black/50 flex gap-3 ring-1 ring-white/5 transition-all duration-300 ease-silky focus-within:ring-indigo-500/50 focus-within:border-indigo-500/50 focus-within:shadow-[0_0_20px_rgba(99,102,241,0.15)] focus-within:scale-[1.01]">
             <input 
                 type="text" value={prompt} onChange={(e) => setPrompt(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleTextTo3D()}
-                placeholder={isGenerating ? "Generating 3D model..." : "Describe a 3D object to generate..."}
+                placeholder={isGenerating ? "Generating..." : "Describe the 3D model (e.g. A cat wearing an astronaut helmet)..."}
                 disabled={isGenerating}
                 className="flex-1 bg-transparent border-none py-3 px-4 text-sm text-zinc-200 focus:outline-none placeholder:text-zinc-500 font-medium disabled:opacity-50"
             />

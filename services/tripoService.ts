@@ -132,7 +132,7 @@ export const testApiConnection = async (): Promise<{ success: boolean; message: 
         console.error("[TripoService] Connection Test Failed: Received HTML. Worker might be down or URL is wrong.");
         return { 
             success: false, 
-            message: '连接失败: 返回了 HTML。请检查后端 URL 是否正确。' 
+            message: 'Connection Failed: Received HTML. Check Backend URL.' 
         };
     }
     
@@ -141,25 +141,25 @@ export const testApiConnection = async (): Promise<{ success: boolean; message: 
     // Both statuses confirm we successfully reached the Tripo API via the Worker
     if (response.status === 404 || response.status === 400) {
         console.log(`[TripoService] Connection Test Success: Worker proxied request correctly (Status ${response.status})`);
-        return { success: true, message: '后端服务连接正常' };
+        return { success: true, message: 'Backend Service Connected (GCP)' };
     }
     
     if (response.status === 401 || response.status === 403) {
       console.warn(`[TripoService] Connection Test: Auth Error (${response.status})`);
-      return { success: false, message: 'Worker 配置错误: API Key 无效' };
+      return { success: false, message: 'Worker Config Error: Invalid API Key' };
     }
 
     if (response.ok) {
-        return { success: true, message: '服务连接正常' };
+        return { success: true, message: 'Service Connected Successfully' };
     }
 
-    return { success: false, message: `未知状态: ${response.status}` };
+    return { success: false, message: `Unknown Status: ${response.status}` };
 
   } catch (error: any) {
     console.error("[TripoService] Connection Failed:", error);
     let msg = error.message;
-    if (error.name === 'AbortError') msg = '连接超时';
-    else if (msg.includes('Failed to fetch')) msg = '无法连接 (请检查 URL 格式/CORS)';
+    if (error.name === 'AbortError') msg = 'Connection Timed Out';
+    else if (msg.includes('Failed to fetch')) msg = 'Connection Failed (Check URL/CORS)';
     return { success: false, message: msg };
   }
 };
@@ -170,7 +170,7 @@ export const testApiConnection = async (): Promise<{ success: boolean; message: 
 export const uploadImageToTripo = async (file: File): Promise<string> => {
     const MAX_SIZE = 15 * 1024 * 1024; // 15MB
     if (file.size > MAX_SIZE) {
-        throw new Error(`文件过大 (${(file.size / 1024 / 1024).toFixed(1)}MB)。请上传小于 15MB 的图片。`);
+        throw new Error(`File too large (${(file.size / 1024 / 1024).toFixed(1)}MB). Please upload under 15MB.`);
     }
 
     console.log(`[TripoService] Uploading image via Worker: ${file.name}`);

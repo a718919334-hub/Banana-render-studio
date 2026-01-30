@@ -67,7 +67,7 @@ export default function AssetManager() {
         createdAt: Date.now()
       });
       
-      addNotification('success', `模型 "${file.name}" 导入成功`);
+      addNotification('success', `Model "${file.name}" imported successfully`);
       addModelToScene(localModelUrl, file.name);
     });
 
@@ -108,12 +108,12 @@ export default function AssetManager() {
             if (status === AssetStatus.COMPLETED && remoteModelUrl) {
                 // AUTO-DOWNLOAD Logic: Fetch the model to local memory
                 try {
-                    addNotification('info', '正在下载模型到本地...');
+                    addNotification('info', 'Downloading model to local storage...');
                     const modelBlob = await downloadTripoModel(remoteModelUrl);
                     const localBlobUrl = URL.createObjectURL(modelBlob);
                     
                     updateAsset(assetId, { status, modelUrl: localBlobUrl });
-                    addNotification('success', `模型 "${originalName}" 已下载并就绪！`);
+                    addNotification('success', `Model "${originalName}" is ready!`);
                     
                     // Auto-add to scene using the local URL
                     addModelToScene(localBlobUrl, originalName);
@@ -124,9 +124,9 @@ export default function AssetManager() {
                     // This allows Three.js to try loading it directly (CORS might work depending on CDN).
                     
                     if (downloadErr.message.includes('404')) {
-                        addNotification('error', '注意：远程 Worker 不支持代理下载。已切换到直连模式。');
+                        addNotification('error', 'Note: Proxy download failed. Switched to direct connection.');
                     } else {
-                        addNotification('info', `本地下载失败，尝试使用在线链接...`);
+                        addNotification('info', `Local download failed, using remote link...`);
                     }
                     
                     // Use Direct URL, DO NOT use getProxyUrl here as it would likely fail again
@@ -137,13 +137,13 @@ export default function AssetManager() {
                 updateAsset(assetId, { status, modelUrl: remoteModelUrl });
                 if (status === AssetStatus.ERROR) {
                      updateAsset(assetId, { errorMsg: "API Error" });
-                     addNotification('error', `生成失败: ${originalName}`);
+                     addNotification('error', `Generation failed: ${originalName}`);
                 }
             }
         });
     } catch (err: any) {
         updateAsset(assetId, { status: AssetStatus.ERROR, errorMsg: err.message });
-        addNotification('error', `错误: ${err.message}`);
+        addNotification('error', `Error: ${err.message}`);
     }
   };
 
