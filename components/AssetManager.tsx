@@ -1,14 +1,35 @@
-import React, { useState } from 'react';
+import React, { useState, Suspense, useMemo } from 'react';
+import { Canvas } from '@react-three/fiber';
+import { Stage, OrbitControls, useGLTF } from '@react-three/drei';
 import { useAppStore } from '../store/useAppStore';
 import { AssetStatus } from '../types';
-import { testApiConnection, uploadImageToTripo, createImageTo3DTask, pollTripoTask } from '../services/tripoService';
+import { testApiConnection, uploadImageToTripo, createImageTo3DTask, pollTripoTask, downloadTripoModel, getProxyUrl } from '../services/tripoService';
 import { v4 as uuidv4 } from 'uuid';
-import { Loader2, Image as ImageIcon, FolderOpen, Wifi, GripVertical, Sparkles, Box, Plus, Trash2, CloudUpload } from 'lucide-react';
+import { Loader2, Image as ImageIcon, FolderOpen, Wifi, GripVertical, Sparkles, Box, Plus, Trash2, CloudUpload, Download } from 'lucide-react';
+
+// Preview Component for the Hover Card
+function AssetPreview3D({ url }: { url: string }) {
+    // Reuse proxy logic to ensure remote models load correctly via worker
+    const processedUrl = useMemo(() => {
+        if (!url) return "";
+        if (url.startsWith('blob:') || url.startsWith('data:')) return url;
+        // Check if already proxied
+        if (url.includes('/proxy?url=')) return url;
+        return getProxyUrl(url);
+    }, [url]);
+
+    const { scene } = useGLTF(processedUrl || "", true);
+    return <primitive object={scene} />;
+}
 
 export default function AssetManager() {
   const { assets, addModelToScene, addAsset, updateAsset, removeAsset, addNotification } = useAppStore();
   const [apiStatus, setApiStatus] = useState<'idle' | 'checking' | 'ok' | 'error'>('idle');
   const [apiMsg, setApiMsg] = useState('');
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  // State for Hover Preview
+  const [hoveredAsset, setHoveredAsset] = useState<{ id: string, url: string, name: string, top: number } | null>(null);
 
   // 1. Handle Image Selection
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -53,7 +74,7 @@ export default function AssetManager() {
     e.target.value = '';
   };
 
-  // 2. Generation Logic
+  // 2. Generation Logic with Auto-Download
   const handleGenerate = async (e: React.MouseEvent, assetId: string, imageUrl: string, originalName: string) => {
     e.stopPropagation();
     
@@ -68,27 +89,72 @@ export default function AssetManager() {
     try {
         const response = await fetch(imageUrl);
         const blob = await response.blob();
-        const file = new File([blob], originalName, { type: blob.type });
+        
+        // Generate a safe filename to avoid issues with special characters (Chinese, Emojis, spaces)
+        // Format: upload_{timestamp}_{uuid}.{ext}
+        const fileExtension = originalName.split('.').pop() || 'png';
+        const safeExtension = fileExtension.replace(/[^a-zA-Z0-9]/g, '').toLowerCase(); // Sanitize extension
+        const safeFileName = `upload_${Date.now()}_${uuidv4()}.${safeExtension}`;
+        
+        // Create a new File object with the safe name
+        const file = new File([blob], safeFileName, { type: blob.type });
 
         const imageToken = await uploadImageToTripo(file);
-        const fileExt = originalName.split('.').pop() || 'png';
-        const taskId = await createImageTo3DTask(imageToken, fileExt);
+        
+        // Use the sanitized extension for the task creation
+        const taskId = await createImageTo3DTask(imageToken, safeExtension);
 
-        pollTripoTask(taskId, (status, modelUrl) => {
-            updateAsset(assetId, { status, modelUrl });
-            if (status === AssetStatus.COMPLETED && modelUrl) {
-                addNotification('success', `模型 "${originalName}" 生成成功！`);
-                // Auto-add to scene
-                addModelToScene(modelUrl, originalName);
-            } else if (status === AssetStatus.ERROR) {
-                 updateAsset(assetId, { errorMsg: "API Error" });
-                 addNotification('error', `生成失败: ${originalName}`);
+        pollTripoTask(taskId, async (status, remoteModelUrl) => {
+            if (status === AssetStatus.COMPLETED && remoteModelUrl) {
+                // AUTO-DOWNLOAD Logic: Fetch the model to local memory
+                try {
+                    addNotification('info', '正在下载模型到本地...');
+                    const modelBlob = await downloadTripoModel(remoteModelUrl);
+                    const localBlobUrl = URL.createObjectURL(modelBlob);
+                    
+                    updateAsset(assetId, { status, modelUrl: localBlobUrl });
+                    addNotification('success', `模型 "${originalName}" 已下载并就绪！`);
+                    
+                    // Auto-add to scene using the local URL
+                    addModelToScene(localBlobUrl, originalName);
+
+                } catch (downloadErr: any) {
+                    // FALLBACK STRATEGY:
+                    // If local download fails (proxy missing), fallback to the DIRECT REMOTE URL.
+                    // This allows Three.js to try loading it directly (CORS might work depending on CDN).
+                    
+                    if (downloadErr.message.includes('404')) {
+                        addNotification('error', '注意：远程 Worker 不支持代理下载。已切换到直连模式。');
+                    } else {
+                        addNotification('info', `本地下载失败，尝试使用在线链接...`);
+                    }
+                    
+                    // Use Direct URL, DO NOT use getProxyUrl here as it would likely fail again
+                    updateAsset(assetId, { status, modelUrl: remoteModelUrl });
+                    addModelToScene(remoteModelUrl, originalName);
+                }
+            } else {
+                updateAsset(assetId, { status, modelUrl: remoteModelUrl });
+                if (status === AssetStatus.ERROR) {
+                     updateAsset(assetId, { errorMsg: "API Error" });
+                     addNotification('error', `生成失败: ${originalName}`);
+                }
             }
         });
     } catch (err: any) {
         updateAsset(assetId, { status: AssetStatus.ERROR, errorMsg: err.message });
         addNotification('error', `错误: ${err.message}`);
     }
+  };
+
+  const handleDownloadFile = (e: React.MouseEvent, url: string, name: string) => {
+      e.stopPropagation();
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = name.endsWith('.glb') ? name : `${name}.glb`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
   };
 
   const checkConnection = async (): Promise<boolean> => {
@@ -108,7 +174,7 @@ export default function AssetManager() {
   };
 
   return (
-    <div className="flex flex-col h-full text-zinc-300 select-none">
+    <div className="flex flex-col h-full text-zinc-300 select-none relative">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-white/5 bg-[#18181b]">
         <div className="flex items-center gap-2 text-xs font-bold text-zinc-100 tracking-wider">
@@ -173,6 +239,18 @@ export default function AssetManager() {
                     }
                   }}
                   onDragEnd={(e) => e.currentTarget.style.opacity = '1'}
+                  onMouseEnter={(e) => {
+                      if (canAdd && item.modelUrl) {
+                          const rect = e.currentTarget.getBoundingClientRect();
+                          setHoveredAsset({ 
+                              id: item.id, 
+                              url: item.modelUrl, 
+                              name: item.originalName, 
+                              top: rect.top 
+                          });
+                      }
+                  }}
+                  onMouseLeave={() => setHoveredAsset(null)}
                   className={`group relative p-2 rounded-lg flex items-center gap-3 transition-all border border-transparent hover:bg-[#27272a] hover:border-white/5 ${canAdd ? 'cursor-grab active:cursor-grabbing' : ''}`}
                 >
                   <div className={`text-zinc-500 ${canAdd ? 'group-hover:text-zinc-300' : 'opacity-20'}`}><GripVertical size={12} /></div>
@@ -199,7 +277,7 @@ export default function AssetManager() {
                   </div>
 
                   {/* Actions Overlay / Row */}
-                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all translate-x-2 group-hover:translate-x-0">
+                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all translate-x-2 group-hover:translate-x-0 bg-[#27272a]/90 backdrop-blur pl-2 rounded-l">
                       {(item.status === AssetStatus.PENDING || item.status === AssetStatus.ERROR) && (
                           <button 
                             onClick={(e) => handleGenerate(e, item.id, item.imageUrl, item.originalName)} 
@@ -215,6 +293,7 @@ export default function AssetManager() {
                       )}
 
                       {canAdd && (
+                         <>
                           <button 
                             onClick={() => addModelToScene(item.modelUrl!, item.originalName)} 
                             className="p-1.5 rounded bg-zinc-700 hover:bg-zinc-600 text-zinc-200 transition-all"
@@ -222,17 +301,36 @@ export default function AssetManager() {
                           >
                             <Plus size={14} />
                           </button>
+                          
+                          <button 
+                             onClick={(e) => handleDownloadFile(e, item.modelUrl!, item.originalName)}
+                             className="p-1.5 rounded bg-zinc-700 hover:bg-zinc-600 text-zinc-200 transition-all"
+                             title="Download GLB"
+                           >
+                             <Download size={14} />
+                           </button>
+                         </>
                       )}
                       
                       <button 
                         onClick={(e) => {
                              e.stopPropagation();
-                             if(confirm(`Delete "${item.originalName}"?`)) removeAsset(item.id);
+                             if (deletingId === item.id) {
+                                 removeAsset(item.id);
+                                 setDeletingId(null);
+                             } else {
+                                 setDeletingId(item.id);
+                                 setTimeout(() => setDeletingId(null), 3000);
+                             }
                         }}
-                        className="p-1.5 rounded hover:bg-red-900/50 text-zinc-500 hover:text-red-400 transition-all"
-                        title="Delete"
+                        className={`p-1.5 rounded transition-all ${
+                            deletingId === item.id 
+                            ? 'bg-red-600 text-white hover:bg-red-700 shadow-lg shadow-red-900/50' 
+                            : 'hover:bg-red-900/50 text-zinc-500 hover:text-red-400'
+                        }`}
+                        title={deletingId === item.id ? "Click again to confirm" : "Delete"}
                       >
-                        <Trash2 size={14} />
+                        <Trash2 size={14} fill={deletingId === item.id ? "currentColor" : "none"} />
                       </button>
                   </div>
                 </div>
@@ -240,6 +338,32 @@ export default function AssetManager() {
           })}
         </div>
       </div>
+
+      {/* --- HOVER PREVIEW POPUP --- */}
+      {hoveredAsset && (
+          <div 
+             className="fixed z-[100] w-64 h-64 bg-[#18181b] rounded-xl border border-white/10 shadow-2xl flex flex-col overflow-hidden animate-in fade-in slide-in-from-left-2 duration-200 pointer-events-none"
+             style={{ 
+                 left: '330px', 
+                 top: Math.min(window.innerHeight - 270, Math.max(20, hoveredAsset.top - 100))
+             }}
+          >
+              <div className="px-3 py-2 border-b border-white/5 bg-zinc-900/90 flex justify-between items-center shrink-0">
+                <span className="text-[10px] font-bold text-zinc-300 uppercase tracking-wider truncate max-w-[180px]">{hoveredAsset.name}</span>
+                <span className="text-[9px] bg-indigo-500/20 text-indigo-300 px-1.5 py-0.5 rounded font-bold">PREVIEW</span>
+             </div>
+             <div className="flex-1 relative bg-gradient-to-b from-[#131315] to-black">
+                <Canvas shadows dpr={[1, 2]} camera={{ fov: 45 }}>
+                   <Suspense fallback={null}>
+                      <Stage intensity={0.5} environment="city" adjustCamera={1.2}>
+                         <AssetPreview3D url={hoveredAsset.url} />
+                      </Stage>
+                   </Suspense>
+                   <OrbitControls autoRotate autoRotateSpeed={5} enableZoom={false} enablePan={false} />
+                </Canvas>
+             </div>
+          </div>
+      )}
     </div>
   );
 }

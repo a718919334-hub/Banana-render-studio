@@ -1,8 +1,12 @@
 import React from 'react';
 import { useAppStore } from '../store/useAppStore';
-import { Move, RotateCw, Scaling, Grid, Play, Save, Download, Undo2, Redo2, Zap, Video, MonitorPlay } from 'lucide-react';
+import { Move, RotateCw, Scaling, Grid, Play, Save, Download, Undo2, Redo2, Zap, Video, MonitorPlay, Aperture } from 'lucide-react';
 
-export default function Toolbar() {
+interface ToolbarProps {
+    onToggleRender?: () => void;
+}
+
+export default function Toolbar({ onToggleRender }: ToolbarProps) {
   const { 
     transformMode, 
     setTransformMode, 
@@ -84,7 +88,7 @@ export default function Toolbar() {
       </div>
 
       {/* View & Export */}
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-1 pr-4 border-r border-white/10">
         <ToolBtn 
           active={renderSettings.gridVisible} 
           onClick={() => updateRenderSettings({ gridVisible: !renderSettings.gridVisible })}
@@ -96,6 +100,15 @@ export default function Toolbar() {
           <Download size={18} />
         </ToolBtn>
       </div>
+
+      {/* AI Render Button */}
+      <button 
+          onClick={onToggleRender}
+          className="flex items-center gap-2 px-4 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold transition-all shadow-lg shadow-indigo-500/20 hover:scale-105 active:scale-95 group"
+      >
+          <Aperture size={16} className="group-hover:rotate-180 transition-transform duration-500" />
+          <span className="tracking-wide">AI RENDER</span>
+      </button>
     </div>
   );
 }

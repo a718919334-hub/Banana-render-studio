@@ -12,13 +12,14 @@ export default defineConfig(({ mode }) => {
     },
     server: {
       proxy: {
-        // GCP/Firebase Ecosystem Standard:
-        // Map '/api/tripo' to the real API. 
-        // In Production, this path is handled by Firebase Hosting Rewrites pointing to Cloud Functions.
+        // Cloudflare Worker Proxy
+        // Forward all requests from /api/tripo to the local Wrangler instance
+        // You must run `npx wrangler dev workers/index.js` (on port 8787) for this to work.
         '/api/tripo': {
-          target: 'https://api.tripo3d.ai/v2/openapi',
+          target: 'http://127.0.0.1:8787',
           changeOrigin: true,
-          rewrite: (path) => path.replace(/^\/api\/tripo/, ''),
+          // Note: We do NOT rewrite path here because the Worker expects /api/tripo prefix 
+          // to determine routing logic inside workers/index.js
           secure: false,
         }
       }

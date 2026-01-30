@@ -1,9 +1,9 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import AssetManager from './components/AssetManager';
 import SceneViewer from './components/SceneViewer';
 import RendererPanel from './components/RendererPanel';
 import { useAppStore } from './store/useAppStore';
-import { CheckCircle, AlertCircle, Info, X, Command } from 'lucide-react';
+import { CheckCircle, AlertCircle, Info, X, Command, Link, ExternalLink } from 'lucide-react';
 
 const ToastContainer = () => {
     const { notifications, removeNotification } = useAppStore();
@@ -29,8 +29,13 @@ const ToastContainer = () => {
 };
 
 export default function App() {
+  const { backendUrl, setBackendUrl } = useAppStore();
+  const [isEditingUrl, setIsEditingUrl] = useState(false);
+  const [tempUrl, setTempUrl] = useState(backendUrl);
+
   // Global Undo/Redo Listener
   useEffect(() => {
+    // Keyboard shortcuts
     const handleKeyDown = (e: KeyboardEvent) => {
         // Check for Ctrl (or Command on Mac)
         if (e.ctrlKey || e.metaKey) {
@@ -52,7 +57,34 @@ export default function App() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, []); 
+
+  const handleUrlSubmit = () => {
+      let finalUrl = tempUrl.trim();
+      
+      // Default reset
+      if (!finalUrl) {
+          finalUrl = 'https://soft-wave-9c83.a718919334.workers.dev';
+      } 
+      // Auto-protocol for external domains (if not starting with / or http)
+      else if (!finalUrl.startsWith('/') && !finalUrl.startsWith('http')) {
+          // If localhost or IP address, default to http to avoid SSL issues
+          if (finalUrl.includes('localhost') || finalUrl.includes('127.0.0.1')) {
+              finalUrl = `http://${finalUrl}`;
+          } else {
+              finalUrl = `https://${finalUrl}`;
+          }
+      }
+      
+      // Remove trailing slash for consistency
+      if (finalUrl.endsWith('/')) {
+          finalUrl = finalUrl.slice(0, -1);
+      }
+
+      setBackendUrl(finalUrl);
+      setTempUrl(finalUrl); 
+      setIsEditingUrl(false);
+  };
 
   return (
     <div className="flex flex-col h-screen w-screen overflow-hidden text-zinc-300 font-sans selection:bg-indigo-500/30 bg-[#09090b]">
@@ -68,15 +100,45 @@ export default function App() {
              </div>
          </div>
          
-         <div className="flex gap-1">
-            {['File', 'Edit', 'View', 'Help'].map(item => (
-                <button key={item} className="px-3 py-1.5 text-xs font-medium text-zinc-400 hover:text-white hover:bg-white/5 rounded-md transition-all">
-                    {item}
-                </button>
-            ))}
-         </div>
-
          <div className="flex items-center gap-3">
+             {/* Backend Configuration UI */}
+             {isEditingUrl ? (
+                <div className="flex items-center gap-2 bg-[#09090b] border border-indigo-500/50 rounded-md px-2 py-0.5 animate-in fade-in duration-200 shadow-lg shadow-indigo-500/10">
+                    <Link size={12} className="text-indigo-500" />
+                    <input 
+                        className="bg-transparent border-none text-xs text-white outline-none w-56 font-mono placeholder:text-zinc-600"
+                        value={tempUrl}
+                        onChange={(e) => setTempUrl(e.target.value)}
+                        onBlur={handleUrlSubmit}
+                        onKeyDown={(e) => e.key === 'Enter' && handleUrlSubmit()}
+                        autoFocus
+                        placeholder="e.g. /api/tripo or https://worker.dev"
+                    />
+                </div>
+             ) : (
+                <button 
+                    onClick={() => {
+                        setTempUrl(backendUrl);
+                        setIsEditingUrl(true);
+                    }}
+                    className={`flex items-center gap-2 px-3 py-1 rounded-full border transition-all text-[10px] font-bold tracking-wide group ${
+                        backendUrl === '/api/tripo' 
+                        ? 'bg-[#09090b] border-white/10 text-zinc-400 hover:text-white hover:border-indigo-500/30' 
+                        : 'bg-indigo-900/20 border-indigo-500/30 text-indigo-300 hover:bg-indigo-900/30'
+                    }`}
+                    title="Configure Backend Service URL"
+                >
+                    {backendUrl === '/api/tripo' ? <Link size={12} /> : <ExternalLink size={12} />}
+                    {backendUrl === '/api/tripo' ? 'LOCAL PROXY' : 'CUSTOM BACKEND'}
+                    
+                    {backendUrl !== '/api/tripo' && (
+                        <span className="opacity-50 text-[9px] truncate max-w-[100px] hidden sm:block border-l border-white/10 pl-2 ml-1">
+                            {backendUrl.replace(/^https?:\/\//, '')}
+                        </span>
+                    )}
+                </button>
+             )}
+
              <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-[#09090b] border border-emerald-900/30 text-emerald-500 text-[10px] font-bold tracking-wide">
                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                  GCP CONNECTED
@@ -96,16 +158,6 @@ export default function App() {
         </div>
         
         {/* Middle Panel: 3D Viewport (WORKBENCH) */}
-        {/* 
-            工作台背景样式：摄影棚暗角效果 (Studio Vignette)
-            
-            可替换色值说明 (Replaceable Color Values):
-            1. from-zinc-800 : 中心高光颜色 (Center Highlight). 建议范围: zinc-700 ~ zinc-900
-            2. via-[#09090b] : 中间过渡色 (Mid-tone). 通常保持与主背景一致
-            3. to-black      : 边缘暗角颜色 (Edge Shadow). 保持纯黑以增强深度
-            
-            修改下方的 className 即可调整光影氛围:
-        */}
         <div className="flex-1 flex flex-col bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-zinc-600/50 -zinc-800 to-zinc-1000">
             <SceneViewer />
         </div>

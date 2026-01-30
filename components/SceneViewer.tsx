@@ -1,38 +1,40 @@
 import React, { Suspense, useEffect, useRef, useState, useMemo, ReactNode, Component } from 'react';
 import { Canvas, useThree, useFrame } from '@react-three/fiber';
-import { OrbitControls, useGLTF, Grid, TransformControls, Html, useProgress, Bounds, Environment, GizmoHelper, GizmoViewport, ContactShadows, Billboard, useHelper, PerspectiveCamera } from '@react-three/drei';
+import { OrbitControls, useGLTF, Grid, TransformControls, Html, useProgress, Environment, GizmoHelper, GizmoViewport, ContactShadows, Billboard, useHelper, PerspectiveCamera } from '@react-three/drei';
 import { useAppStore } from '../store/useAppStore';
-import { Zap, Loader2, Sparkles, AlertTriangle, Box, RefreshCw, Aperture, Ratio, Wand2, ArrowRight, X, Download, Video, Lock, Layers, Triangle, Activity, Maximize2 } from 'lucide-react';
+import { Zap, Loader2, Sparkles, AlertTriangle, Box, RefreshCw, Aperture, Ratio, Wand2, X, Download, Video, Lock, Layers, Triangle, Activity, MapPin, Lightbulb, ArrowRight } from 'lucide-react';
 import * as THREE from 'three';
 import { DirectionalLightHelper, CameraHelper } from 'three';
 import { v4 as uuidv4 } from 'uuid';
 import { AssetStatus, ModelTransform, SceneObject, TransformMode } from '../types';
 import { createTextTo3DTask, pollTripoTask } from '../services/tripoService';
-import { generateRefinedImage, optimizePromptFor3D } from '../services/geminiService';
+import { generateRefinedImage, optimizePromptFor3D, analyzeSceneAndSuggestPrompts } from '../services/geminiService';
 import Toolbar from './Toolbar';
 
 // Fix for missing React Three Fiber types in strict environments
 declare global {
   namespace JSX {
     interface IntrinsicElements {
-      ambientLight: any;
-      boxGeometry: any;
-      circleGeometry: any;
-      cylinderGeometry: any;
-      directionalLight: any;
       group: any;
-      hemisphereLight: any;
       mesh: any;
-      meshBasicMaterial: any;
-      meshStandardMaterial: any;
-      primitive: any;
       sphereGeometry: any;
+      meshStandardMaterial: any;
+      meshBasicMaterial: any;
+      circleGeometry: any;
+      directionalLight: any;
+      primitive: any;
+      ambientLight: any;
+      hemisphereLight: any;
+      boxGeometry: any;
+      cylinderGeometry: any;
+      [elemName: string]: any;
     }
   }
 }
 
-// --- Configuration ---
-const DRACO_URL = 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/libs/draco/gltf/';
+// CONSTANTS
+const DRACO_URL = 'https://www.gstatic.com/draco/versioned/decoders/1.5.6/';
+const DEFAULT_WORKER_URL = "https://soft-wave-9c83.a718919334.workers.dev";
 
 const RESOLUTION_PRESETS = [
     { label: 'Square (1:1)', w: 1024, h: 1024, ratio: "1:1", icon: 'square' },
@@ -41,13 +43,17 @@ const RESOLUTION_PRESETS = [
     { label: 'Standard (4:3)', w: 1024, h: 768, ratio: "4:3", icon: 'monitor' },
 ];
 
+// IMPORTANT: Configure Draco Loader globally once to avoid re-initialization loops
+useGLTF.setDecoderPath(DRACO_URL);
+
 // --- Scene Stats Component ---
 function SceneStatsUpdater({ onUpdate }: { onUpdate: (stats: { verts: number, tris: number, objects: number }) => void }) {
     const { scene } = useThree();
     const lastUpdate = useRef(0);
+    const lastStatsRef = useRef({ verts: 0, tris: 0, objects: 0 });
 
     useFrame(({ clock }) => {
-        // Update every 500ms to avoid performance impact
+        // Throttled update (500ms) to prevent performance impact
         if (clock.elapsedTime - lastUpdate.current > 0.5) {
             lastUpdate.current = clock.elapsedTime;
             
@@ -55,24 +61,36 @@ function SceneStatsUpdater({ onUpdate }: { onUpdate: (stats: { verts: number, tr
             let tris = 0;
             let objects = 0;
 
-            scene.traverse((obj) => {
-                // Count meshes that are not editor helpers
-                if ((obj as THREE.Mesh).isMesh && !obj.userData.isEditorObject && obj.visible) {
-                    objects++;
-                    const mesh = obj as THREE.Mesh;
-                    const geo = mesh.geometry;
-                    if (geo) {
-                        verts += geo.attributes.position.count;
-                        if (geo.index) {
-                            tris += geo.index.count / 3;
-                        } else {
-                            tris += geo.attributes.position.count / 3;
+            try {
+                if (scene) {
+                    scene.traverse((obj) => {
+                        // Safety check: ensure obj exists and is a Mesh
+                        // Filter out editor helpers to count only "real" scene objects
+                        if (obj && obj instanceof THREE.Mesh && !obj.userData.isEditorObject && obj.visible) {
+                            objects++;
+                            const geo = obj.geometry;
+                            if (geo) {
+                                verts += geo.attributes.position ? geo.attributes.position.count : 0;
+                                if (geo.index) {
+                                    tris += geo.index.count / 3;
+                                } else if (geo.attributes.position) {
+                                    tris += geo.attributes.position.count / 3;
+                                }
+                            }
                         }
-                    }
+                    });
                 }
-            });
+            } catch(e) {
+                // Ignore traversal errors silently to avoid potential error loops
+            }
 
-            onUpdate({ verts, tris: Math.round(tris), objects });
+            if (lastStatsRef.current.objects !== objects || 
+                Math.abs(lastStatsRef.current.verts - verts) > 100) {
+                
+                const newStats = { verts, tris: Math.round(tris), objects };
+                lastStatsRef.current = newStats;
+                onUpdate(newStats);
+            }
         }
     });
     return null;
@@ -82,56 +100,69 @@ function SceneStatsUpdater({ onUpdate }: { onUpdate: (stats: { verts: number, tr
 function CameraManager() {
     const { camera, gl } = useThree();
     const controlsRef = useRef<any>(null);
-    const { 
-        cameraState, 
-        cameraVersion, 
-        syncCameraState, 
-        activeCameraId,
-        sceneObjects,
-        updateSceneObject
-    } = useAppStore();
+    
+    // Select specific slices to prevent unnecessary re-renders of CameraManager
+    const cameraState = useAppStore(state => state.cameraState);
+    const cameraVersion = useAppStore(state => state.cameraVersion);
+    const activeCameraId = useAppStore(state => state.activeCameraId);
+    
+    // Optimized: Only re-render if the ACTIVE camera object changes
+    const activeCameraObj = useAppStore(state => 
+        state.activeCameraId 
+        ? state.sceneObjects.find(o => o.id === state.activeCameraId) 
+        : undefined
+    );
+    
+    const syncCameraState = useAppStore(state => state.syncCameraState);
+    const updateSceneObject = useAppStore(state => state.updateSceneObject);
+
     const isSyncingStoreToCamera = useRef(false);
+    const isTransitioning = useRef(false);
+    const prevActiveCameraId = useRef(activeCameraId);
+
+    // Detect transition from Camera Mode -> Editor Mode
+    useEffect(() => {
+        if (prevActiveCameraId.current && !activeCameraId) {
+            isTransitioning.current = true;
+        }
+        prevActiveCameraId.current = activeCameraId;
+    }, [activeCameraId]);
 
     // 1. Handle Active Camera Initialization (When switching TO a camera)
     useEffect(() => {
-        if (activeCameraId) {
-            const activeObj = sceneObjects.find(o => o.id === activeCameraId);
-            if (activeObj) {
-                // IMPORTANT: Directly set camera transform to match object state.
-                // This prevents the camera from spawning at 0,0,0 or looking into void.
-                camera.position.set(...activeObj.transform.position);
-                camera.updateMatrixWorld();
+        if (activeCameraObj) {
+            camera.position.set(...activeCameraObj.transform.position);
+            camera.updateMatrixWorld();
 
-                if (controlsRef.current) {
-                    const startPos = new THREE.Vector3(...activeObj.transform.position);
-                    const direction = new THREE.Vector3(0, 0, -1);
-                    direction.applyEuler(new THREE.Euler(...activeObj.transform.rotation));
-                    const target = startPos.clone().add(direction.multiplyScalar(10));
-                    
-                    controlsRef.current.target.copy(target);
-                    controlsRef.current.update();
-                }
+            if (controlsRef.current) {
+                const startPos = new THREE.Vector3(...activeCameraObj.transform.position);
+                const direction = new THREE.Vector3(0, 0, -1);
+                direction.applyEuler(new THREE.Euler(...activeCameraObj.transform.rotation));
+                const target = startPos.clone().add(direction.multiplyScalar(10));
+                
+                controlsRef.current.target.copy(target);
+                controlsRef.current.update();
             }
         }
     }, [activeCameraId, camera]); 
 
     // 2. Sync Store (UI) -> Scene Camera (Editor Camera only)
     useEffect(() => {
-        // If we are looking through a scene camera, we don't sync from cameraState (which is for editor camera)
-        if (activeCameraId) return;
-
+        if (activeCameraId) return; 
         if (isSyncingStoreToCamera.current) return;
         
-        // LOOP PREVENTION: Check if update is actually needed
         const targetPos = new THREE.Vector3(...cameraState.position);
         const targetTarget = new THREE.Vector3(...cameraState.target);
+        
         const distPos = camera.position.distanceTo(targetPos);
         const distTarget = controlsRef.current ? controlsRef.current.target.distanceTo(targetTarget) : 0;
         
-        // Only update if difference is significant
-        if (distPos > 0.01 || distTarget > 0.01) {
+        // Restore state if transitioning or drifted
+        if (isTransitioning.current || distPos > 0.05 || distTarget > 0.05) {
             isSyncingStoreToCamera.current = true;
+            
             camera.position.copy(targetPos);
+            camera.updateMatrixWorld();
             
             if (camera instanceof THREE.PerspectiveCamera) {
                 if (Math.abs(camera.fov - cameraState.fov) > 0.1) {
@@ -144,37 +175,48 @@ function CameraManager() {
                 controlsRef.current.target.copy(targetTarget);
                 controlsRef.current.update();
             }
-            isSyncingStoreToCamera.current = false;
+
+            setTimeout(() => {
+                isSyncingStoreToCamera.current = false;
+                isTransitioning.current = false;
+            }, 50);
         }
     }, [cameraVersion, activeCameraId, cameraState, camera]); 
 
     // 3. Sync Scene Controls -> Store
     const handleControlsChange = () => {
-        // Prevent update loops
         if (isSyncingStoreToCamera.current) return;
+        if (isTransitioning.current) return;
 
         if (activeCameraId) {
-             // Sync OrbitControls changes back to the active Scene Object
-             const activeObj = sceneObjects.find(o => o.id === activeCameraId);
-             if(!activeObj) return;
+             if(!activeCameraObj) return;
 
-             // Extract new transform from the controlled camera
              const pos = camera.position.toArray();
              const rot = [camera.rotation.x, camera.rotation.y, camera.rotation.z];
              
+             const oldPos = new THREE.Vector3(...activeCameraObj.transform.position);
+             // More aggressive delta check to avoid loop
+             if (oldPos.distanceTo(camera.position) < 0.05) return;
+
              updateSceneObject(activeCameraId, {
                  transform: {
-                     ...activeObj.transform,
+                     ...activeCameraObj.transform,
                      position: pos as [number, number, number],
                      rotation: rot as [number, number, number]
                  }
              });
         } else {
-             // Sync OrbitControls changes back to the Editor Camera State
              if (controlsRef.current) {
                  const pos = camera.position;
                  const target = controlsRef.current.target;
                  
+                 const oldPos = new THREE.Vector3(...cameraState.position);
+                 const oldTarget = new THREE.Vector3(...cameraState.target);
+                 
+                 if (oldPos.distanceTo(pos) < 0.05 && oldTarget.distanceTo(target) < 0.05) return;
+                 
+                 if (pos.lengthSq() === 0 && target.lengthSq() === 0) return;
+
                  syncCameraState({
                      position: [pos.x, pos.y, pos.z],
                      target: [target.x, target.y, target.z],
@@ -191,6 +233,7 @@ function CameraManager() {
             minPolarAngle={0} 
             maxPolarAngle={Math.PI} 
             onEnd={handleControlsChange}
+            enableDamping={false}
         />
     );
 }
@@ -199,6 +242,7 @@ interface ErrorBoundaryProps {
     children?: ReactNode;
     onReset: () => void;
     modelUrl?: string | null;
+    key?: any;
 }
 interface ErrorBoundaryState {
     hasError: boolean;
@@ -207,9 +251,12 @@ interface ErrorBoundaryState {
 
 class ModelErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   state: ErrorBoundaryState = { hasError: false, error: null };
+  props: ErrorBoundaryProps;
+  setState: any;
 
   constructor(props: ErrorBoundaryProps) {
     super(props);
+    this.props = props;
     this.state = { hasError: false, error: null };
   }
 
@@ -218,7 +265,8 @@ class ModelErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryStat
   }
 
   componentDidCatch(error: any, errorInfo: any) {
-    console.error("3D Model Parsing Error:", error, errorInfo);
+    // Avoid console logging error objects that might be huge
+    console.error("3D Model Parsing Error Message:", error.message);
     if (this.props.modelUrl) {
         useGLTF.clear(this.props.modelUrl);
     }
@@ -244,7 +292,6 @@ class ModelErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryStat
               </div>
               <button 
                 onClick={(e) => {
-                    // Prevent propagation to scene canvas which might deselect
                     e.stopPropagation(); 
                     this.setState({ hasError: false });
                     if (this.props.modelUrl) useGLTF.clear(this.props.modelUrl);
@@ -288,8 +335,8 @@ const LightInstance: React.FC<LightInstanceProps> = ({ obj, isSelected, transfor
     const lightRef = useRef<THREE.DirectionalLight>(null!);
     const groupRef = useRef<THREE.Group>(null);
     
-    // Visualize the light direction when selected
-    useHelper(isSelected ? lightRef : null, DirectionalLightHelper, 1, '#fbbf24');
+    // Only show helper if selected AND visible
+    useHelper((isSelected && obj.visible) ? lightRef : null, DirectionalLightHelper, 1, '#fbbf24');
 
     useEffect(() => {
         if (groupRef.current) {
@@ -299,9 +346,7 @@ const LightInstance: React.FC<LightInstanceProps> = ({ obj, isSelected, transfor
 
     return (
         <>
-            {/* Control Group */}
-            <group ref={groupRef}>
-                {/* 3D Representation of the source - MARKED AS EDITOR OBJECT */}
+            <group ref={groupRef} visible={obj.visible}>
                 <mesh onClick={onSelect} castShadow receiveShadow userData={{ isEditorObject: true }}>
                     <sphereGeometry args={[0.2, 16, 16]} />
                     <meshStandardMaterial 
@@ -311,7 +356,6 @@ const LightInstance: React.FC<LightInstanceProps> = ({ obj, isSelected, transfor
                     />
                 </mesh>
 
-                {/* Icon Label (Clickable) - MARKED AS EDITOR OBJECT */}
                 <Billboard follow={true} userData={{ isEditorObject: true }}>
                     <mesh onClick={onSelect}>
                         <circleGeometry args={[0.35, 32]} />
@@ -324,7 +368,6 @@ const LightInstance: React.FC<LightInstanceProps> = ({ obj, isSelected, transfor
                     </Html>
                 </Billboard>
                 
-                {/* The actual light */}
                 <directionalLight 
                     ref={lightRef}
                     intensity={obj.lightProps?.intensity ?? 1.0}
@@ -335,8 +378,7 @@ const LightInstance: React.FC<LightInstanceProps> = ({ obj, isSelected, transfor
                 />
             </group>
             
-            {/* Transform Controls */}
-            {isSelected && !obj.locked && groupRef.current && (
+            {isSelected && !obj.locked && obj.visible && groupRef.current && (
                 <TransformControls
                     object={groupRef.current}
                     mode="translate" 
@@ -369,10 +411,8 @@ const CameraInstance: React.FC<CameraInstanceProps> = ({ obj, isSelected, isActi
     const groupRef = useRef<THREE.Group>(null);
     const cameraRef = useRef<THREE.PerspectiveCamera>(null!);
     
-    // Helper to visualize frustum, only when selected and NOT active
-    useHelper((isSelected && !isActive) ? cameraRef : null, CameraHelper);
+    useHelper((isSelected && !isActive && obj.visible) ? cameraRef : null, CameraHelper);
 
-    // Sync group transform ONLY if NOT active
     useEffect(() => {
         if (!isActive && groupRef.current) {
             groupRef.current.position.set(...obj.transform.position);
@@ -380,7 +420,6 @@ const CameraInstance: React.FC<CameraInstanceProps> = ({ obj, isSelected, isActi
         }
     }, [obj.transform.position, obj.transform.rotation, isActive]);
 
-    // If active, we render the camera directly at the root position (controlled by OrbitControls + Props)
     if (isActive) {
         return (
             <PerspectiveCamera 
@@ -389,38 +428,29 @@ const CameraInstance: React.FC<CameraInstanceProps> = ({ obj, isSelected, isActi
                fov={obj.cameraProps?.fov || 50}
                near={0.1}
                far={1000}
-               // IMPORTANT: We do NOT pass position/rotation here. 
-               // CameraManager handles the initial setup, and OrbitControls handles updates.
-               // Passing them here causes conflict/reset during re-renders.
             />
         );
     }
 
-    // When inactive, render visualization group
     return (
-        <group ref={groupRef}>
+        <group ref={groupRef} visible={obj.visible}>
             <PerspectiveCamera 
                 ref={cameraRef}
                 fov={obj.cameraProps?.fov || 50}
                 near={0.1}
                 far={1000}
-                // No rotation here so it aligns with group -Z
             />
 
-            {/* Visual Representation - MARKED AS EDITOR OBJECT */}
             <group onClick={onSelect} rotation={[0, Math.PI, 0]} userData={{ isEditorObject: true }}>
-                {/* Camera Body */}
                 <mesh position={[0, 0, 0]}>
                     <boxGeometry args={[0.4, 0.3, 0.2]} />
                     <meshStandardMaterial color="#333" />
                 </mesh>
-                {/* Lens */}
                 <mesh position={[0, 0, 0.15]} rotation={[Math.PI / 2, 0, 0]}>
                     <cylinderGeometry args={[0.12, 0.12, 0.2, 16]} />
                     <meshStandardMaterial color="#111" />
                 </mesh>
                 
-                {/* Icon */}
                 <Billboard follow={true} position={[0, 0.5, 0]}>
                      <Html position={[0, 0, 0]} center pointerEvents="none" transform={false} zIndexRange={[100, 0]}>
                          <div className={`flex items-center justify-center w-6 h-6 rounded-full transition-colors ${isSelected ? "text-purple-400" : "text-white/70"}`}>
@@ -430,8 +460,7 @@ const CameraInstance: React.FC<CameraInstanceProps> = ({ obj, isSelected, isActi
                 </Billboard>
             </group>
 
-             {/* Transform Controls */}
-             {isSelected && !obj.locked && groupRef.current && (
+             {isSelected && !obj.locked && obj.visible && groupRef.current && (
                 <TransformControls
                     object={groupRef.current}
                     mode={transformMode === 'scale' ? 'translate' : transformMode} 
@@ -457,19 +486,47 @@ interface ModelInstanceProps {
     url: string;
     isSelected: boolean;
     locked?: boolean;
+    visible?: boolean;
     transform: ModelTransform;
     onSelect: (e: any) => void;
     onTransformChange: (t: Partial<ModelTransform>) => void;
     transformMode: TransformMode;
 }
 
-function ModelInstance({ id, url, isSelected, locked, transform, onSelect, onTransformChange, transformMode }: ModelInstanceProps) {
-  useGLTF.setDecoderPath(DRACO_URL);
-  const { scene } = useGLTF(url);
-  const clonedScene = useMemo(() => scene.clone(), [scene]);
+function ModelInstance({ id, url, isSelected, locked, visible = true, transform, onSelect, onTransformChange, transformMode }: ModelInstanceProps) {
+  // Use the backend store to get the worker URL, but fallback to constant if empty
+  const storeBackendUrl = useAppStore(state => state.backendUrl);
+  const WORKER_URL = storeBackendUrl || DEFAULT_WORKER_URL;
+  
+  // CORE FIX: Robust Proxy Logic to handle CORS
+  // 1. Local Blobs/Data URIs -> Use directly
+  // 2. Already proxied URLs -> Use directly (prevent double wrapping)
+  // 3. Remote URLs -> Wrap in Worker Proxy
+  const processedUrl = useMemo(() => {
+    if (!url) return null;
+    
+    // Check for local file
+    if (url.startsWith('blob:') || url.startsWith('data:')) {
+        return url;
+    }
+    
+    // Check if already proxied to avoid loops or double encoding
+    if (url.includes('/proxy?url=')) {
+        return url;
+    }
+
+    // Construct Proxy URL
+    const cleanBase = WORKER_URL.replace(/\/+$/, '');
+    return `${cleanBase}/proxy?url=${encodeURIComponent(url)}`;
+  }, [url, WORKER_URL]);
+
+  // IMPORTANT: Pass 'true' as the second argument to useGLTF to enable Draco compression support
+  // This is critical for Tripo3D models which are often compressed.
+  const { scene } = useGLTF(processedUrl || "", true);
+  
+  const clonedScene = useMemo(() => (scene ? scene.clone() : null), [scene]);
   const [mesh, setMesh] = useState<THREE.Object3D | null>(null);
 
-  // Apply transform from props to mesh
   useEffect(() => {
     if (mesh) {
         mesh.position.set(...transform.position);
@@ -478,19 +535,23 @@ function ModelInstance({ id, url, isSelected, locked, transform, onSelect, onTra
     }
   }, [transform, mesh]);
 
-  // Enable shadows
   useEffect(() => {
-    clonedScene.traverse((obj) => {
-      if ((obj as THREE.Mesh).isMesh) {
-        obj.castShadow = true;
-        obj.receiveShadow = true;
-      }
-    });
+    if (clonedScene) {
+        clonedScene.traverse((obj) => {
+        if ((obj as THREE.Mesh).isMesh) {
+            obj.castShadow = true;
+            obj.receiveShadow = true;
+        }
+        });
+    }
   }, [clonedScene]);
+
+  // Safety check: if URL processing failed, don't render primitive
+  if (!processedUrl) return null;
 
   return (
     <>
-      {isSelected && !locked && mesh && (
+      {isSelected && !locked && visible && mesh && (
         <TransformControls 
             object={mesh} 
             mode={transformMode}
@@ -509,26 +570,25 @@ function ModelInstance({ id, url, isSelected, locked, transform, onSelect, onTra
         object={clonedScene} 
         onClick={onSelect}
         ref={setMesh}
+        visible={visible}
       />
     </>
   );
 }
 
-// --- Viewport Capturer with Clean Mode ---
 const ViewportCapturer = ({ captureRef }: { captureRef: React.MutableRefObject<any> }) => {
     const { gl, scene, camera } = useThree();
     useEffect(() => {
         captureRef.current = () => {
-            // 1. Identification Phase: Find objects to hide (Grid, Helpers, Editor Visuals)
             const hiddenObjects: THREE.Object3D[] = [];
             
             scene.traverse((obj) => {
                 if (
-                    obj.userData.isEditorObject || // Explicitly marked editor objects
-                    obj.name === 'GlobalGrid' || // The named Grid
-                    obj.type.includes('Helper') || // Helpers (CameraHelper, etc)
-                    obj.name === 'TransformControls' || // Controls
-                    (obj as any).isTransformControls // Some implementations of TransformControls
+                    obj.userData.isEditorObject || 
+                    obj.name === 'GlobalGrid' || 
+                    obj.type.includes('Helper') || 
+                    obj.name === 'TransformControls' || 
+                    (obj as any).isTransformControls 
                 ) {
                     if (obj.visible) {
                         obj.visible = false;
@@ -537,11 +597,9 @@ const ViewportCapturer = ({ captureRef }: { captureRef: React.MutableRefObject<a
                 }
             });
 
-            // 2. Render Phase: Capture the clean scene
             gl.render(scene, camera);
             const dataUrl = gl.domElement.toDataURL('image/png', 1.0);
 
-            // 3. Restoration Phase: Show them again
             hiddenObjects.forEach(obj => obj.visible = true);
 
             return dataUrl;
@@ -550,40 +608,80 @@ const ViewportCapturer = ({ captureRef }: { captureRef: React.MutableRefObject<a
     return null;
 }
 
-// 渲染窗口组件 (Render Window Component)
-// 这是一个模态对话框，用于处理 AI 渲染请求
 const RenderWindow = ({ onClose, onCaptureRequest }: any) => {
-    const { addNotification } = useAppStore();
-    // 渲染结果图片的 URL (Rendered result image URL)
+    const addNotification = useAppStore(state => state.addNotification);
+    const activeCameraId = useAppStore(state => state.activeCameraId);
+    const sceneObjects = useAppStore(state => state.sceneObjects);
+    const cameraState = useAppStore(state => state.cameraState);
+    
     const [renderResult, setRenderResult] = useState<string | null>(null);
-    // 基础截图 (Base screenshot from the 3D viewport)
     const [baseImage, setBaseImage] = useState<string | null>(null);
-    // 渲染状态 (Rendering loading state)
     const [isRendering, setIsRendering] = useState(false);
-    // 提示词输入 (Prompt input)
     const [prompt, setPrompt] = useState("");
-    // 选中的分辨率预设索引 (Selected resolution/aspect ratio preset index)
     const [selectedPresetIdx, setSelectedPresetIdx] = useState(0);
 
-    // 初始化时获取视口截图 (Capture viewport on mount)
+    // AI Suggestions State
+    const [suggestedPrompts, setSuggestedPrompts] = useState<string[]>([]);
+    const [isAnalyzing, setIsAnalyzing] = useState(false);
+
+    // Dynamic Camera Data for display
+    const [camDisplayInfo, setCamDisplayInfo] = useState({
+        fov: 50,
+        pos: "",
+        rot: ""
+    });
+
     useEffect(() => {
         if (onCaptureRequest && !baseImage) {
             setBaseImage(onCaptureRequest());
         }
     }, [onCaptureRequest, baseImage]);
 
-    // 处理渲染点击事件 (Handle render button click)
+    // TRIGGER ANALYSIS ON OPEN
+    useEffect(() => {
+        if (baseImage && !renderResult) {
+            setIsAnalyzing(true);
+            analyzeSceneAndSuggestPrompts(baseImage)
+                .then(prompts => setSuggestedPrompts(prompts))
+                .catch(err => console.error(err))
+                .finally(() => setIsAnalyzing(false));
+        }
+    }, [baseImage]);
+
+    // Update camera display info on mount and when states change
+    useEffect(() => {
+        let f = cameraState.fov;
+        let p = `[${cameraState.position.map(n=>n.toFixed(1)).join(', ')}]`;
+        let r = `LookAt [${cameraState.target.map(n=>n.toFixed(1)).join(', ')}]`;
+
+        if (activeCameraId) {
+            const cam = sceneObjects.find(o => o.id === activeCameraId);
+            if (cam) {
+                if (cam.cameraProps) f = cam.cameraProps.fov;
+                p = `[${cam.transform.position.map(n=>n.toFixed(1)).join(', ')}]`;
+                r = `Rot [${cam.transform.rotation.map(n=>n.toFixed(1)).join(', ')}]`;
+            }
+        }
+        setCamDisplayInfo({ fov: f, pos: p, rot: r });
+    }, [cameraState, activeCameraId, sceneObjects]);
+
+
     const handleRender = async () => {
         if (!prompt.trim()) addNotification('info', '建议输入提示词以获得更好的风格化效果');
         setIsRendering(true);
         const preset = RESOLUTION_PRESETS[selectedPresetIdx];
+        
+        // Final calculation for prompt
+        const camInfoStr = `Position: ${camDisplayInfo.pos}, Orientation: ${camDisplayInfo.rot}`;
+
         try {
             if (!baseImage) throw new Error("无法获取场景截图");
-            // 调用 Gemini 服务生成精炼图像
             const resultUrl = await generateRefinedImage({
                 prompt: prompt,
                 referenceImage: baseImage,
-                aspectRatio: preset.ratio as any
+                aspectRatio: preset.ratio as any,
+                fov: camDisplayInfo.fov,
+                cameraInfo: camInfoStr
             });
             setRenderResult(resultUrl);
             addNotification('success', 'AI 渲染完成');
@@ -596,28 +694,21 @@ const RenderWindow = ({ onClose, onCaptureRequest }: any) => {
     };
 
     return (
-        // 遮罩层 (Overlay/Backdrop)
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 animate-in fade-in duration-300">
-            {/* 对话框主体 (Dialog Body) - Brightened background and border */}
-            <div className="w-[900px] h-[600px] bg-[#27272a] border border-white/20 rounded-xl shadow-2xl flex flex-col overflow-hidden relative ring-1 ring-white/10">
-                {/* 标题栏 (Header) - Brightened background */}
+            <div className="w-[1024px] h-[700px] bg-[#27272a] border border-white/20 rounded-xl shadow-2xl flex flex-col overflow-hidden relative ring-1 ring-white/10">
                 <div className="h-14 bg-[#27272a] flex items-center justify-between px-6 border-b border-white/10 shrink-0">
                     <div className="flex items-center gap-2 text-white font-bold tracking-wide">
                         <div className="p-1.5 rounded-lg bg-indigo-500/20 text-indigo-400"><Aperture size={16}/></div>
                         <span>AI Render Studio</span>
                         <span className="text-[10px] bg-indigo-600 text-white px-2 py-0.5 rounded-full font-bold ml-2">Gemini 2.5 Flash</span>
                     </div>
-                    {/* 关闭按钮 (Close Button) */}
                     <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-full text-zinc-400 hover:text-white transition"><X size={18}/></button>
                 </div>
                 
-                {/* 内容区域 (Content Area) */}
                 <div className="flex-1 flex min-h-0">
-                    {/* 左侧：图片预览区 (Left: Image Preview) */}
                     <div className="flex-1 bg-black relative p-6 flex items-center justify-center">
                          <div className="absolute inset-0 opacity-20" style={{ backgroundImage: 'radial-gradient(circle at center, #1e1b4b 0%, transparent 70%)' }} />
                          <div className="relative max-w-full max-h-full shadow-lg z-10 rounded-lg overflow-hidden border border-white/10 bg-black">
-                             {/* 显示结果或基础截图 (Show Result or Base Image) */}
                              {renderResult ? (
                                 <img src={renderResult} className="max-w-full max-h-full object-contain" alt="Result" />
                              ) : baseImage ? (
@@ -626,7 +717,6 @@ const RenderWindow = ({ onClose, onCaptureRequest }: any) => {
                                 <Loader2 className="animate-spin text-zinc-600"/>
                              )}
                              
-                             {/* 加载中遮罩 (Loading Overlay) */}
                              {isRendering && (
                                  <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center text-white z-20">
                                      <div className="relative">
@@ -638,9 +728,29 @@ const RenderWindow = ({ onClose, onCaptureRequest }: any) => {
                          </div>
                     </div>
 
-                    {/* 右侧：设置面板 (Right: Settings Panel) - Brightened background */}
-                    <div className="w-80 bg-[#27272a] border-l border-white/10 flex flex-col p-6 gap-6 overflow-y-auto">
-                        {/* 比例选择 (Aspect Ratio Selection) */}
+                    <div className="w-[440px] bg-[#27272a] border-l border-white/10 flex flex-col p-6 gap-6 overflow-y-auto">
+                        
+                        {/* Camera Context Display */}
+                        <div className="p-3 bg-black/20 rounded-lg border border-white/5">
+                            <label className="text-[10px] font-bold text-zinc-500 mb-2 flex items-center gap-2 uppercase tracking-wider">
+                                <MapPin size={10} /> Camera Context
+                            </label>
+                            <div className="grid grid-cols-2 gap-y-1 text-[10px] font-mono text-zinc-300">
+                                <span className="text-zinc-500">Mode:</span>
+                                <span className="text-indigo-400 font-bold">{activeCameraId ? "Scene Camera" : "Editor View"}</span>
+                                
+                                <span className="text-zinc-500">FOV:</span>
+                                <span>{camDisplayInfo.fov.toFixed(0)}°</span>
+                                
+                                <span className="text-zinc-500">Pos:</span>
+                                <span className="truncate" title={camDisplayInfo.pos}>{camDisplayInfo.pos}</span>
+                                
+                                <span className="text-zinc-500">Dir:</span>
+                                <span className="truncate" title={camDisplayInfo.rot}>{camDisplayInfo.rot}</span>
+                            </div>
+                        </div>
+
+                        {/* Aspect Ratio */}
                         <div>
                             <label className="text-xs font-bold text-zinc-300 mb-3 flex items-center gap-2 uppercase tracking-wider"><Ratio size={12} /> Aspect Ratio</label>
                             <div className="grid grid-cols-2 gap-2">
@@ -653,14 +763,56 @@ const RenderWindow = ({ onClose, onCaptureRequest }: any) => {
                             </div>
                         </div>
 
-                        {/* 提示词输入 (Prompt Input) */}
-                        <div className="flex-1">
-                            <label className="text-xs font-bold text-zinc-300 mb-3 flex items-center gap-2 uppercase tracking-wider"><Wand2 size={12} /> Prompt</label>
-                            <textarea value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="Describe the style (e.g. Cyberpunk, Claymation, Realistic)..." className="w-full h-32 bg-[#18181b] border border-white/10 rounded-lg p-4 text-sm text-zinc-200 focus:outline-none focus:border-indigo-500 focus:bg-[#000] resize-none transition-all placeholder:text-zinc-500" />
+                        {/* Prompt & AI Suggestions Area (Side by Side) */}
+                        <div className="flex-1 flex flex-col min-h-0">
+                             <div className="flex items-center justify-between mb-2">
+                                <label className="text-xs font-bold text-zinc-300 flex items-center gap-2 uppercase tracking-wider"><Wand2 size={12} /> Prompt</label>
+                                {isAnalyzing && <span className="text-[10px] text-zinc-500 animate-pulse flex items-center gap-1"><Loader2 size={10} className="animate-spin"/> Analyzing Scene...</span>}
+                             </div>
+
+                             <div className="flex gap-3 h-48">
+                                 {/* Prompt Input */}
+                                 <textarea 
+                                    value={prompt} 
+                                    onChange={(e) => setPrompt(e.target.value)} 
+                                    placeholder="Describe the style (e.g. Cyberpunk, Claymation, Realistic)..." 
+                                    className="flex-1 bg-[#18181b] border border-white/10 rounded-lg p-3 text-sm text-zinc-200 focus:outline-none focus:border-indigo-500 focus:bg-[#000] resize-none transition-all placeholder:text-zinc-600 h-full" 
+                                />
+
+                                 {/* Suggestions List (Right Side) */}
+                                 <div className="w-40 flex flex-col gap-2 overflow-y-auto pr-1 custom-scrollbar">
+                                     <div className="sticky top-0 bg-[#27272a] pb-1 z-10">
+                                         <label className="text-[10px] font-bold text-zinc-500 flex items-center gap-1 uppercase tracking-wider">
+                                             <Lightbulb size={10} className="text-yellow-500" /> Ideas
+                                         </label>
+                                     </div>
+                                     
+                                     {isAnalyzing && suggestedPrompts.length === 0 ? (
+                                         [1, 2, 3].map(i => <div key={i} className="h-12 bg-white/5 rounded-lg animate-pulse shrink-0" />)
+                                     ) : (
+                                        suggestedPrompts.length > 0 ? suggestedPrompts.map((s, i) => (
+                                             <button 
+                                                 key={i}
+                                                 onClick={() => setPrompt(s)}
+                                                 className="text-left text-[10px] p-2 bg-[#18181b] border border-white/5 hover:border-indigo-500/50 hover:bg-indigo-500/10 rounded-lg text-zinc-400 hover:text-indigo-200 transition-all leading-tight shrink-0 group relative"
+                                                 title={s}
+                                             >
+                                                 <span className="line-clamp-3 group-hover:line-clamp-none transition-all">{s}</span>
+                                                 <div className="absolute right-1 bottom-1 opacity-0 group-hover:opacity-100 text-indigo-400">
+                                                     <ArrowRight size={8} />
+                                                 </div>
+                                             </button>
+                                         )) : (
+                                            <div className="text-[10px] text-zinc-600 italic text-center py-4 border border-dashed border-white/5 rounded-lg">
+                                                No suggestions
+                                            </div>
+                                         )
+                                     )}
+                                 </div>
+                             </div>
                         </div>
 
-                        {/* 底部操作按钮 (Action Buttons) */}
-                        <div className="mt-auto flex flex-col gap-3">
+                        <div className="mt-auto flex flex-col gap-3 pt-4 border-t border-white/5">
                             <button onClick={handleRender} disabled={isRendering} className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl shadow-lg shadow-indigo-900/40 disabled:opacity-50 flex items-center justify-center gap-2 transition-all hover:translate-y-[-1px]">
                                 <Sparkles size={16} fill="currentColor" /> {isRendering ? 'Rendering...' : 'Generate Render'}
                             </button>
@@ -676,23 +828,27 @@ const RenderWindow = ({ onClose, onCaptureRequest }: any) => {
 };
 
 export default function SceneViewer() {
-  const { 
-      sceneObjects, 
-      renderSettings, 
-      selectedObjectId, 
-      setSelectedObjectId, 
-      addAsset, 
-      updateAsset, 
-      addModelToScene, 
-      addNotification, 
-      updateSelectedObjectTransform, 
-      transformMode, 
-      removeSceneObject,
-      activeCameraId
-  } = useAppStore();
+  // Use Selectors for granular subscription to store
+  // Prevents re-render on unrelated changes (e.g. Asset status updates)
+  const sceneObjects = useAppStore(state => state.sceneObjects);
+  const renderSettings = useAppStore(state => state.renderSettings);
+  const selectedObjectId = useAppStore(state => state.selectedObjectId);
+  const transformMode = useAppStore(state => state.transformMode);
+  const activeCameraId = useAppStore(state => state.activeCameraId);
+  
+  // Actions are stable, but good practice to select them or use `useAppStore.getState()` if pure
+  const setSelectedObjectId = useAppStore(state => state.setSelectedObjectId);
+  const updateSelectedObjectTransform = useAppStore(state => state.updateSelectedObjectTransform);
+  const removeSceneObject = useAppStore(state => state.removeSceneObject);
+  const addAsset = useAppStore(state => state.addAsset);
+  const updateAsset = useAppStore(state => state.updateAsset);
+  const addModelToScene = useAppStore(state => state.addModelToScene);
+  const addNotification = useAppStore(state => state.addNotification);
 
   const [prompt, setPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [statusText, setStatusText] = useState('');
   const [showRenderWindow, setShowRenderWindow] = useState(false);
   const [stats, setStats] = useState({ verts: 0, tris: 0, objects: 0 });
   const captureRef = useRef<(() => string) | null>(null);
@@ -700,17 +856,20 @@ export default function SceneViewer() {
   const handleTextTo3D = async () => {
     if (!prompt.trim()) return;
     setIsGenerating(true);
+    setProgress(0);
+    setStatusText('Initializing...');
+
     const newId = uuidv4();
     
-    // Placeholder asset
     addAsset({ id: newId, originalName: prompt, imageUrl: "https://placehold.co/100x100/18181b/666?text=Tripo+AI", status: AssetStatus.PENDING, modelUrl: null, createdAt: Date.now() });
     
-    // Clear input but keep the logic running
     const originalPrompt = prompt;
     setPrompt('');
 
     try {
         addNotification('info', 'Optimizing prompt with Gemini...');
+        setStatusText('Optimizing Prompt (Gemini)...');
+        
         const optimizedPrompt = await optimizePromptFor3D(originalPrompt);
         
         if (optimizedPrompt !== originalPrompt) {
@@ -718,29 +877,46 @@ export default function SceneViewer() {
             addNotification('success', `Optimized: ${optimizedPrompt.slice(0, 30)}...`);
         }
 
+        setStatusText('Submitting Task...');
         const taskId = await createTextTo3DTask(optimizedPrompt);
-        updateAsset(newId, { status: AssetStatus.PROCESSING });
         
-        pollTripoTask(taskId, (status, modelUrl) => {
+        updateAsset(newId, { status: AssetStatus.PROCESSING });
+        setStatusText('Queued');
+        
+        pollTripoTask(taskId, (status, modelUrl, prog) => {
+            // Update local progress UI
+            setProgress(prog || 0);
+            
+            if (status === AssetStatus.PENDING) setStatusText('In Queue...');
+            if (status === AssetStatus.PROCESSING) {
+                if ((prog || 0) < 30) setStatusText('Generating Geometry...');
+                else if ((prog || 0) < 70) setStatusText('Refining Mesh...');
+                else setStatusText('Applying Texture...');
+            }
+
+            // Update Global Asset Store
             updateAsset(newId, { status, modelUrl });
+
             if (status === AssetStatus.COMPLETED && modelUrl) {
                 addNotification('success', 'Model Generated');
                 addModelToScene(modelUrl, originalPrompt);
+                setIsGenerating(false);
+                setProgress(100);
             } else if (status === AssetStatus.ERROR) {
                 addNotification('error', 'Generation Failed');
+                setIsGenerating(false);
+                setStatusText('Failed');
             }
         });
     } catch (e) {
         updateAsset(newId, { status: AssetStatus.ERROR });
         addNotification('error', 'Request Failed');
-    } finally {
         setIsGenerating(false);
     }
   };
 
   const handleLoadDemo = () => addModelToScene('https://cdn.jsdelivr.net/gh/KhronosGroup/glTF-Sample-Models@master/2.0/DamagedHelmet/glTF-Binary/DamagedHelmet.glb', 'Damaged Helmet');
 
-  // Handle Drag & Drop from Asset Manager
   const handleDrop = (e: React.DragEvent) => {
       e.preventDefault();
       try {
@@ -759,24 +935,11 @@ export default function SceneViewer() {
         onDragOver={(e) => e.preventDefault()}
         onDrop={handleDrop}
     >
-      <Toolbar />
+      <Toolbar onToggleRender={() => setShowRenderWindow(!showRenderWindow)} />
       
-      {/* --- Left Top: Render Button (Dark Grey Layer) --- */}
-      <div className="absolute top-20 left-4 z-10 pointer-events-auto">
-         <button onClick={() => setShowRenderWindow(!showRenderWindow)} className="group bg-[#18181b] p-3 rounded-2xl border border-white/5 shadow-lg shadow-black/20 text-zinc-300 hover:text-white hover:border-indigo-500/30 transition-all flex items-center gap-3">
-            <div className="p-1.5 bg-indigo-500/10 rounded-lg text-indigo-400 group-hover:bg-indigo-500 group-hover:text-white transition-colors">
-                <Aperture size={20} />
-            </div>
-            <div className="flex flex-col items-start">
-                <span className="text-xs font-bold tracking-wide">AI RENDER</span>
-                <span className="text-[9px] opacity-60 font-medium">VISUALIZE</span>
-            </div>
-         </button>
-      </div>
+      {/* Absolute "AI RENDER" button removed from here. */}
 
-      {/* --- Right Top: Stats & Info (Dark Grey Layer) --- */}
       <div className="absolute top-20 right-4 z-10 pointer-events-auto flex flex-col items-end gap-3">
-          {/* Stats Panel */}
           <div className="bg-[#18181b] border border-white/5 p-4 rounded-2xl shadow-lg shadow-black/20 text-[10px] font-mono text-zinc-400 min-w-[160px] flex flex-col gap-2 select-none group hover:border-white/10 transition-colors">
              <div className="flex justify-between items-center border-b border-white/5 pb-2 mb-1 opacity-80">
                  <div className="flex items-center gap-1.5 font-sans font-bold tracking-wider text-zinc-300"><Activity size={12} className="text-emerald-500" /> STATISTICS</div>
@@ -795,7 +958,6 @@ export default function SceneViewer() {
              </div>
           </div>
 
-          {/* Camera Active Indicator */}
           {activeCameraId && (
               <div className="flex items-center gap-3 bg-red-900/80 text-white px-4 py-2.5 rounded-xl shadow-lg border border-red-500/50 animate-pulse">
                   <Video size={16} fill="currentColor" />
@@ -822,7 +984,6 @@ export default function SceneViewer() {
       <div className="flex-1 cursor-crosshair relative w-full h-full">
           <Canvas 
             shadows 
-            // Camera position is now handled by CameraManager
             camera={{ position: [5, 5, 5], fov: 50, near: 0.1, far: 1000 }} 
             gl={{ preserveDrawingBuffer: true, antialias: true, alpha: true }}
             onPointerMissed={(e) => {
@@ -831,70 +992,68 @@ export default function SceneViewer() {
           >
             <ViewportCapturer captureRef={captureRef} />
             <SceneStatsUpdater onUpdate={setStats} />
-            <CameraManager /> {/* Handles OrbitControls and Camera Sync */}
+            <CameraManager /> 
             
             <ambientLight intensity={0.4} />
             <hemisphereLight intensity={0.5} groundColor="#000000" color="#333333" />
             
             <Suspense fallback={<ModelLoader />}>
-                <Bounds fit clip={false} observe={false} margin={1.2}>
-                    {sceneObjects.map((obj) => {
-                        if (obj.type === 'light') {
-                             return (
-                                <LightInstance 
-                                    key={obj.id}
-                                    obj={obj}
-                                    isSelected={selectedObjectId === obj.id}
-                                    transformMode={transformMode}
-                                    onSelect={(e) => {
-                                        e.stopPropagation();
-                                        setSelectedObjectId(obj.id);
-                                    }}
-                                    onTransformChange={updateSelectedObjectTransform}
-                                />
-                             )
-                        }
-
-                        if (obj.type === 'camera') {
+                {sceneObjects.map((obj) => {
+                    if (obj.type === 'light') {
                             return (
-                                <CameraInstance
-                                    key={obj.id}
-                                    obj={obj}
-                                    isSelected={selectedObjectId === obj.id}
-                                    isActive={activeCameraId === obj.id}
-                                    transformMode={transformMode}
-                                    onSelect={(e) => {
-                                        e.stopPropagation();
-                                        setSelectedObjectId(obj.id);
-                                    }}
-                                    onTransformChange={updateSelectedObjectTransform}
-                                />
+                            <LightInstance 
+                                key={obj.id}
+                                obj={obj}
+                                isSelected={selectedObjectId === obj.id}
+                                transformMode={transformMode}
+                                onSelect={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedObjectId(obj.id);
+                                }}
+                                onTransformChange={updateSelectedObjectTransform}
+                            />
                             )
-                        }
+                    }
 
-                        // Use URL directly; assuming backend relay is handling CORS headers
-                        const safeUrl = obj.url || null;
-                        if (!safeUrl) return null;
-
+                    if (obj.type === 'camera') {
                         return (
-                             <ModelErrorBoundary key={obj.id} onReset={() => removeSceneObject(obj.id)} modelUrl={safeUrl}>
-                                <ModelInstance 
-                                    id={obj.id}
-                                    url={safeUrl}
-                                    isSelected={selectedObjectId === obj.id}
-                                    locked={obj.locked}
-                                    transform={obj.transform}
-                                    transformMode={transformMode}
-                                    onSelect={(e) => {
-                                        e.stopPropagation();
-                                        setSelectedObjectId(obj.id);
-                                    }}
-                                    onTransformChange={updateSelectedObjectTransform}
-                                />
-                             </ModelErrorBoundary>
-                        );
-                    })}
-                </Bounds>
+                            <CameraInstance
+                                key={obj.id}
+                                obj={obj}
+                                isSelected={selectedObjectId === obj.id}
+                                isActive={activeCameraId === obj.id}
+                                transformMode={transformMode}
+                                onSelect={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedObjectId(obj.id);
+                                }}
+                                onTransformChange={updateSelectedObjectTransform}
+                            />
+                        )
+                    }
+
+                    const safeUrl = obj.url || null;
+                    if (!safeUrl) return null;
+
+                    return (
+                            <ModelErrorBoundary key={obj.id} onReset={() => removeSceneObject(obj.id)} modelUrl={safeUrl}>
+                            <ModelInstance 
+                                id={obj.id}
+                                url={safeUrl}
+                                isSelected={selectedObjectId === obj.id}
+                                locked={obj.locked}
+                                visible={obj.visible}
+                                transform={obj.transform}
+                                transformMode={transformMode}
+                                onSelect={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedObjectId(obj.id);
+                                }}
+                                onTransformChange={updateSelectedObjectTransform}
+                            />
+                            </ModelErrorBoundary>
+                    );
+                })}
                 <Environment preset="city" blur={0.8} background={false} /> 
                 <ContactShadows position={[0, -0.01, 0]} opacity={0.4} scale={20} blur={2.5} far={4} color="#000000" />
             </Suspense>
@@ -906,12 +1065,34 @@ export default function SceneViewer() {
           </Canvas>
       </div>
 
-      <div className="absolute bottom-8 left-1/2 -translate-x-1/2 w-[600px] max-w-[90%] z-20 pointer-events-auto">
+      {/* Progress & Input Area */}
+      <div className="absolute bottom-8 left-1/2 -translate-x-1/2 w-[600px] max-w-[90%] z-20 pointer-events-auto flex flex-col gap-2">
+         
+         {/* Generation Progress Indicator */}
+         {isGenerating && (
+             <div className="bg-[#18181b]/90 backdrop-blur border border-white/10 rounded-xl p-3 shadow-xl animate-in slide-in-from-bottom-2 fade-in">
+                 <div className="flex justify-between items-center text-xs font-bold text-zinc-300 mb-2">
+                     <div className="flex items-center gap-2">
+                         <div className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"/>
+                         <span className="uppercase tracking-wider text-[10px] text-indigo-400">{statusText}</span>
+                     </div>
+                     <span className="font-mono">{progress}%</span>
+                 </div>
+                 <div className="h-1.5 w-full bg-zinc-800 rounded-full overflow-hidden">
+                     <div 
+                        className="h-full bg-indigo-500 transition-all duration-500 ease-out shadow-[0_0_10px_rgba(99,102,241,0.5)]" 
+                        style={{ width: `${progress}%` }} 
+                     />
+                 </div>
+             </div>
+         )}
+
          <div className="bg-[#18181b] border border-white/5 p-2 rounded-2xl shadow-lg shadow-black/50 flex gap-3 ring-1 ring-white/5 transition-all focus-within:ring-indigo-500/50 focus-within:border-indigo-500/50">
             <input 
                 type="text" value={prompt} onChange={(e) => setPrompt(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleTextTo3D()}
-                placeholder="Describe a 3D object to generate..."
-                className="flex-1 bg-transparent border-none py-3 px-4 text-sm text-zinc-200 focus:outline-none placeholder:text-zinc-500 font-medium"
+                placeholder={isGenerating ? "Generating 3D model..." : "Describe a 3D object to generate..."}
+                disabled={isGenerating}
+                className="flex-1 bg-transparent border-none py-3 px-4 text-sm text-zinc-200 focus:outline-none placeholder:text-zinc-500 font-medium disabled:opacity-50"
             />
             <button onClick={handleTextTo3D} disabled={isGenerating || !prompt.trim()} className="bg-indigo-600 hover:bg-indigo-500 text-white px-6 rounded-xl font-bold text-sm flex items-center gap-2 disabled:opacity-50 transition-all shadow-lg shadow-indigo-900/30">
                 {isGenerating ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} fill="currentColor" />}

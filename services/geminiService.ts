@@ -8,6 +8,8 @@ export interface GenerationConfig {
   prompt: string;
   referenceImage: string; // Base64 string
   aspectRatio?: "1:1" | "16:9" | "9:16" | "4:3" | "3:4";
+  fov?: number;
+  cameraInfo?: string;
 }
 
 /**
@@ -35,14 +37,81 @@ export const optimizePromptFor3D = async (rawPrompt: string): Promise<string> =>
 };
 
 /**
+ * Analyzes the scene screenshot and suggests 3 creative prompts.
+ * Uses Gemini 3 Flash multimodal capabilities.
+ */
+export const analyzeSceneAndSuggestPrompts = async (imageBase64: string): Promise<string[]> => {
+  const cleanBase64 = imageBase64.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, '');
+
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-flash-preview',
+      contents: {
+        parts: [
+          {
+            inlineData: {
+              mimeType: 'image/png',
+              data: cleanBase64
+            }
+          },
+          {
+            text: `Analyze this 3D scene composition, geometry, and lighting. 
+            Generate 3 distinct, high-quality rendering prompts that would transform this basic viewport capture into a stunning final image.
+            
+            Vary the art styles significantly (e.g., "Cinematic Photorealism", "Stylized/Clay", "Sci-Fi/Cyberpunk", "Watercolor/Painterly").
+            Keep each prompt concise (under 25 words) but descriptive.
+            
+            Return ONLY a JSON array of strings, e.g. ["Prompt 1...", "Prompt 2...", "Prompt 3..."].`
+          }
+        ]
+      },
+      config: {
+        responseMimeType: "application/json"
+      }
+    });
+    
+    const text = response.text;
+    if (!text) return [];
+    
+    const parsed = JSON.parse(text);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (error) {
+    console.error("Gemini Analysis Error:", error);
+    // Fallback prompts if API fails
+    return [
+        "Cinematic studio lighting, 8k resolution, photorealistic textures, depth of field",
+        "Stylized clay render, soft shadows, pastel color palette, playful atmosphere", 
+        "Cyberpunk neon aesthetic, dark moody lighting, futuristic materials, volumetric fog"
+    ];
+  }
+};
+
+/**
  * Generates a refined image based on a 3D viewport screenshot and a text prompt
  * using the 'gemini-2.5-flash-image' model (Nano Banana).
  */
 export const generateRefinedImage = async (config: GenerationConfig): Promise<string> => {
-  const { prompt, referenceImage, aspectRatio = "1:1" } = config;
+  const { prompt, referenceImage, aspectRatio = "1:1", fov, cameraInfo } = config;
 
   // Clean the base64 string (remove data URI prefix if present)
   const cleanBase64 = referenceImage.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, '');
+
+  // Construct a more detailed prompt using Camera info
+  let fullPrompt = prompt || "High quality 3D render, photorealistic, 8k resolution, detailed texture, cinematic lighting.";
+  
+  // ADDED: Default Consistency and Optimization Instructions
+  fullPrompt += `\n\n[CONSISTENCY]: Strictly maintain the main subject's geometry, pose, and structural integrity from the reference image. Do not add, remove, or distort major objects.`;
+  fullPrompt += `\n[OPTIMIZATION]: Analyze the scene's composition and apply optimal lighting, shadows, and high-fidelity material textures to enhance realism and visual impact based on the scene context.`;
+
+  // STRONG INSTRUCTION: Explicitly tell Gemini to adhere to the spatial context
+  if (cameraInfo || fov) {
+      fullPrompt += `\n\n[SPATIAL CONSTRAINT]: The provided reference image is a view from a virtual camera. You MUST maintain this exact perspective and composition.`;
+      
+      if (fov) fullPrompt += ` Camera FOV is ${fov.toFixed(0)} degrees.`;
+      if (cameraInfo) fullPrompt += ` Camera Transform: ${cameraInfo}.`;
+      
+      fullPrompt += ` Do not change the camera angle. Apply the style and details while keeping the geometry aligned with this view.`;
+  }
 
   try {
     const response = await ai.models.generateContent({
@@ -56,7 +125,7 @@ export const generateRefinedImage = async (config: GenerationConfig): Promise<st
             }
           },
           {
-            text: prompt || "High quality 3D render, photorealistic, 8k resolution, detailed texture, cinematic lighting."
+            text: fullPrompt
           }
         ]
       },
@@ -95,8 +164,8 @@ export const generateRefinedImage = async (config: GenerationConfig): Promise<st
         }
     }
     
-    // Log the full candidate for deep debugging if needed
-    console.debug("Gemini Candidate Dump:", JSON.stringify(candidate, null, 2));
+    // Removing potentially circular JSON dump to prevent stack overflow errors
+    console.debug("Gemini Candidate received without image data.");
 
     throw new Error(errorMessage);
 

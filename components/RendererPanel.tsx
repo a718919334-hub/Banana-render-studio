@@ -35,7 +35,7 @@ const Vector3Input = ({ label, value, onChange, disabled }: { label: string, val
   };
 
 // Extracted Component: SceneItem
-const SceneItem = ({ id, label, icon: Icon, active, onClick, onDelete }: any) => (
+const SceneItem = ({ id, label, icon: Icon, active, visible = true, onClick, onToggleVisibility, onDelete }: any) => (
     <div 
         onClick={onClick}
         className={`group flex items-center gap-2.5 px-3 py-2 cursor-pointer text-xs rounded-lg mx-2 mb-1 transition-all border ${
@@ -45,7 +45,22 @@ const SceneItem = ({ id, label, icon: Icon, active, onClick, onDelete }: any) =>
         }`}
     >
         <Icon size={14} className={active ? 'text-indigo-400' : 'opacity-50 group-hover:opacity-80'} /> 
-        <span className="flex-1 truncate font-bold">{label}</span>
+        <span className={`flex-1 truncate font-bold ${!visible ? 'opacity-50 line-through' : ''}`}>{label}</span>
+        
+        {/* Visibility Toggle */}
+        {onToggleVisibility && (
+             <button 
+                onClick={(e) => {
+                    e.stopPropagation();
+                    onToggleVisibility();
+                }}
+                className={`p-1 hover:bg-white/10 rounded transition-all ${!visible ? 'text-zinc-600' : 'text-zinc-500 hover:text-zinc-200'}`}
+                title={visible ? "Hide" : "Show"}
+            >
+                {visible ? <Eye size={12} /> : <EyeOff size={12} />}
+            </button>
+        )}
+
         {onDelete && (
             <button 
                 onClick={(e) => {
@@ -113,6 +128,8 @@ export default function RendererPanel() {
                 label="Viewport Grid" 
                 icon={GridIcon} 
                 active={selectedObjectId === 'grid'}
+                visible={renderSettings.gridVisible}
+                onToggleVisibility={() => updateRenderSettings({ gridVisible: !renderSettings.gridVisible })}
                 onClick={() => setSelectedObjectId('grid')}
              />
              <SceneItem 
@@ -135,6 +152,8 @@ export default function RendererPanel() {
                         label={obj.name || "Untitled"} 
                         icon={obj.type === 'light' ? Zap : obj.type === 'camera' ? Video : Box} 
                         active={selectedObjectId === obj.id}
+                        visible={obj.visible}
+                        onToggleVisibility={() => updateSceneObject(obj.id, { visible: !obj.visible })}
                         onClick={() => setSelectedObjectId(obj.id)}
                         onDelete={() => removeSceneObject(obj.id)}
                      />
@@ -178,14 +197,24 @@ export default function RendererPanel() {
                             </div>
                             <span className="text-sm font-bold text-zinc-100 truncate max-w-[120px]">{selectedObject.name}</span>
                         </div>
-                        {/* Lock Toggle */}
-                        <button 
-                            onClick={() => updateSceneObject(selectedObject.id, { locked: !selectedObject.locked })}
-                            className={`p-1.5 rounded transition-all ${selectedObject.locked ? 'text-red-400 bg-red-900/20' : 'text-zinc-500 hover:text-zinc-300 hover:bg-white/5'}`}
-                            title={selectedObject.locked ? "Unlock" : "Lock"}
-                        >
-                            {selectedObject.locked ? <Lock size={14} /> : <Unlock size={14} />}
-                        </button>
+                        <div className="flex items-center gap-1">
+                            {/* Visibility Toggle in Properties */}
+                            <button 
+                                onClick={() => updateSceneObject(selectedObject.id, { visible: !selectedObject.visible })}
+                                className={`p-1.5 rounded transition-all ${!selectedObject.visible ? 'text-zinc-600' : 'text-zinc-500 hover:text-zinc-300 hover:bg-white/5'}`}
+                                title={selectedObject.visible ? "Hide" : "Show"}
+                            >
+                                {selectedObject.visible ? <Eye size={14} /> : <EyeOff size={14} />}
+                            </button>
+                            {/* Lock Toggle */}
+                            <button 
+                                onClick={() => updateSceneObject(selectedObject.id, { locked: !selectedObject.locked })}
+                                className={`p-1.5 rounded transition-all ${selectedObject.locked ? 'text-red-400 bg-red-900/20' : 'text-zinc-500 hover:text-zinc-300 hover:bg-white/5'}`}
+                                title={selectedObject.locked ? "Unlock" : "Lock"}
+                            >
+                                {selectedObject.locked ? <Lock size={14} /> : <Unlock size={14} />}
+                            </button>
+                        </div>
                     </div>
 
                     {/* Camera View Switcher */}

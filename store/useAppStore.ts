@@ -1,4 +1,3 @@
-
 import { create } from 'zustand';
 import { Asset, RenderSettings, TransformMode, ModelTransform, AppNotification, SceneObject, CameraState } from '../types';
 import { v4 as uuidv4 } from 'uuid';
@@ -10,6 +9,9 @@ interface UndoableState {
 }
 
 interface AppState {
+  // Config
+  backendUrl: string;
+
   // Asset Management
   assets: Asset[];
   
@@ -36,6 +38,7 @@ interface AppState {
   future: UndoableState[];
 
   // Actions
+  setBackendUrl: (url: string) => void;
   setAssets: (assets: Asset[]) => void;
   addAsset: (asset: Asset) => void;
   updateAsset: (id: string, updates: Partial<Asset>) => void;
@@ -69,7 +72,15 @@ interface AppState {
   redo: () => void;
 }
 
+// Generate a static ID for the default camera so we can reference it in initial state
+const DEFAULT_CAMERA_ID = uuidv4();
+
 export const useAppStore = create<AppState>((set, get) => ({
+  // CONFIGURATION:
+  // Default to the provided production Cloudflare Worker URL.
+  // We use localStorage to persist changes, but fallback to the specific remote URL.
+  backendUrl: localStorage.getItem('tripo_backend_url') || 'https://soft-wave-9c83.a718919334.workers.dev', 
+
   assets: [],
   sceneObjects: [
     // Default Directional Light
@@ -80,16 +91,26 @@ export const useAppStore = create<AppState>((set, get) => ({
       transform: { position: [5, 5, 5], rotation: [0, 0, 0], scale: [1, 1, 1] },
       visible: true,
       lightProps: { intensity: 1.5, color: '#ffffff', castShadow: true }
+    },
+    // Default Main Camera (As Viewpoint)
+    {
+      id: DEFAULT_CAMERA_ID,
+      type: 'camera',
+      name: 'Main Camera',
+      transform: { position: [0, 2, 6], rotation: [0, 0, 0], scale: [1, 1, 1] },
+      visible: true,
+      locked: false,
+      cameraProps: { fov: 45 }
     }
   ],
   
   transformMode: 'translate',
-  selectedObjectId: null,
-  activeCameraId: null,
+  selectedObjectId: DEFAULT_CAMERA_ID, // Select the camera by default
+  activeCameraId: DEFAULT_CAMERA_ID,   // Set the camera as the active viewpoint
 
   renderSettings: {
     autoRotate: false, 
-    gridVisible: false,
+    gridVisible: true, // Enable grid by default for better orientation
   },
   
   cameraState: {
@@ -102,6 +123,11 @@ export const useAppStore = create<AppState>((set, get) => ({
   notifications: [],
   past: [],
   future: [],
+
+  setBackendUrl: (url) => {
+      localStorage.setItem('tripo_backend_url', url);
+      set({ backendUrl: url });
+  },
 
   setAssets: (assets) => set({ assets }),
   
