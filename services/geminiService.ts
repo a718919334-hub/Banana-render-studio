@@ -10,6 +10,7 @@ export interface GenerationConfig {
   aspectRatio?: "1:1" | "16:9" | "9:16" | "4:3" | "3:4";
   fov?: number;
   cameraInfo?: string;
+  lightingInfo?: string; // NEW: Description of scene lights
 }
 
 /**
@@ -91,7 +92,7 @@ export const analyzeSceneAndSuggestPrompts = async (imageBase64: string): Promis
  * using the 'gemini-2.5-flash-image' model (Nano Banana).
  */
 export const generateRefinedImage = async (config: GenerationConfig): Promise<string> => {
-  const { prompt, referenceImage, aspectRatio = "1:1", fov, cameraInfo } = config;
+  const { prompt, referenceImage, aspectRatio = "1:1", fov, cameraInfo, lightingInfo } = config;
 
   // Clean the base64 string (remove data URI prefix if present)
   const cleanBase64 = referenceImage.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, '');
@@ -99,11 +100,17 @@ export const generateRefinedImage = async (config: GenerationConfig): Promise<st
   // Construct a more detailed prompt using Camera info
   let fullPrompt = prompt || "High quality 3D render, photorealistic, 8k resolution, detailed texture, cinematic lighting.";
   
-  // ADDED: Default Consistency and Optimization Instructions
-  fullPrompt += `\n\n[CONSISTENCY]: Strictly maintain the main subject's geometry, pose, and structural integrity from the reference image. Do not add, remove, or distort major objects.`;
-  fullPrompt += `\n[OPTIMIZATION]: Analyze the scene's composition and apply optimal lighting, shadows, and high-fidelity material textures to enhance realism and visual impact based on the scene context.`;
+  // --- HIGH PRIORITY SECTIONS (Moved to top) ---
 
-  // STRONG INSTRUCTION: Explicitly tell Gemini to adhere to the spatial context
+  // 1. LIGHTING (Highest Priority for Mood/Direction)
+  if (lightingInfo) {
+      fullPrompt += `\n\n[PRIORITY - LIGHTING CONFIGURATION]:
+      The scene is illuminated by the following specific light sources. You MUST reproduce the EXACT shadow angles and color temperature described below:
+      ${lightingInfo}
+      INSTRUCTION: Ignore generic studio lighting. Use ONLY the lights described above to determine shadow fall and highlights. If a light is red, the scene MUST be tinted red. If it is from the right, shadows MUST fall to the left.`;
+  }
+
+  // 2. CAMERA / SPATIAL
   if (cameraInfo || fov) {
       fullPrompt += `\n\n[SPATIAL CONSTRAINT]: The provided reference image is a view from a virtual camera. You MUST maintain this exact perspective and composition.`;
       
@@ -112,6 +119,13 @@ export const generateRefinedImage = async (config: GenerationConfig): Promise<st
       
       fullPrompt += ` Do not change the camera angle. Apply the style and details while keeping the geometry aligned with this view.`;
   }
+
+  // --- GENERAL INSTRUCTIONS ---
+
+  // 3. CONSISTENCY & OPTIMIZATION
+  fullPrompt += `\n\n[CONSISTENCY]: Strictly maintain the main subject's geometry, pose, and structural integrity from the reference image. Do not add, remove, or distort major objects.`;
+  fullPrompt += `\n[OPTIMIZATION]: Analyze the scene's composition and apply high-fidelity material textures to enhance realism and visual impact.`;
+
 
   try {
     const response = await ai.models.generateContent({

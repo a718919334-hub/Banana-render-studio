@@ -676,8 +676,23 @@ const RenderWindow = ({ onClose, onCaptureRequest }: any) => {
         setIsRendering(true);
         const preset = RESOLUTION_PRESETS[selectedPresetIdx];
         
-        // Final calculation for prompt
+        // Final calculation for prompt & lighting
         const camInfoStr = `Position: ${camDisplayInfo.pos}, Orientation: ${camDisplayInfo.rot}`;
+        
+        // Extract Light Information
+        const activeLights = sceneObjects.filter(obj => obj.type === 'light' && obj.visible);
+        let lightingInfoStr = "";
+        
+        if (activeLights.length > 0) {
+            lightingInfoStr = activeLights.map((l, i) => {
+                 const pos = l.transform.position.map(n => n.toFixed(1)).join(', ');
+                 const color = l.lightProps?.color || '#ffffff';
+                 const intensity = l.lightProps?.intensity || 1.0;
+                 return `Source ${i+1}: Directional Light positioned at coordinates (${pos}). Color: ${color}. Intensity: ${intensity}.`;
+            }).join('\n');
+        } else {
+            lightingInfoStr = "Standard environment lighting.";
+        }
 
         try {
             if (!baseImage) throw new Error("无法获取场景截图");
@@ -686,7 +701,8 @@ const RenderWindow = ({ onClose, onCaptureRequest }: any) => {
                 referenceImage: baseImage,
                 aspectRatio: preset.ratio as any,
                 fov: camDisplayInfo.fov,
-                cameraInfo: camInfoStr
+                cameraInfo: camInfoStr,
+                lightingInfo: lightingInfoStr // Pass lighting info to Gemini
             });
             setRenderResult(resultUrl);
             addNotification('success', 'AI 渲染完成');
@@ -752,6 +768,30 @@ const RenderWindow = ({ onClose, onCaptureRequest }: any) => {
                                 
                                 <span className="text-zinc-500">Dir:</span>
                                 <span className="truncate" title={camDisplayInfo.rot}>{camDisplayInfo.rot}</span>
+                            </div>
+                        </div>
+
+                         {/* Scene Lighting Display */}
+                         <div className="p-3 bg-black/20 rounded-lg border border-white/5 animate-slide-in-right stagger-1 mt-2">
+                            <label className="text-[10px] font-bold text-zinc-500 mb-2 flex items-center gap-2 uppercase tracking-wider">
+                                <Zap size={10} /> Scene Lighting
+                            </label>
+                            <div className="text-[10px] font-mono text-zinc-300">
+                                {sceneObjects.filter(o => o.type === 'light' && o.visible).length > 0 ? (
+                                    <div className="flex flex-col gap-1">
+                                        {sceneObjects.filter(o => o.type === 'light' && o.visible).map((l, i) => (
+                                            <div key={l.id} className="flex justify-between items-center bg-white/5 px-2 py-1 rounded">
+                                                <span>Light {i+1}</span>
+                                                <div className="flex items-center gap-2">
+                                                    <div className="w-2 h-2 rounded-full" style={{backgroundColor: l.lightProps?.color || '#fff'}}></div>
+                                                    <span className="text-zinc-500">{l.lightProps?.intensity.toFixed(1)}x</span>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <span className="text-zinc-600 italic">Default Environment</span>
+                                )}
                             </div>
                         </div>
 
