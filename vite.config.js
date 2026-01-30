@@ -12,14 +12,14 @@ export default defineConfig(({ mode }) => {
     },
     server: {
       proxy: {
-        // Cloudflare Worker Proxy
-        // Forward all requests from /api/tripo to the local Wrangler instance
-        // You must run `npx wrangler dev workers/index.js` (on port 8787) for this to work.
+        // Google Cloud Functions Local Emulator Proxy
+        // Forward requests to local Functions Framework (port 8080)
+        // Run: npx @google-cloud/functions-framework --target=tripoProxy --port=8080
         '/api/tripo': {
-          target: 'http://127.0.0.1:8787',
+          target: 'http://127.0.0.1:8080',
           changeOrigin: true,
-          // Note: We do NOT rewrite path here because the Worker expects /api/tripo prefix 
-          // to determine routing logic inside workers/index.js
+          // We preserve the prefix so the function can detect it if needed,
+          // or rely on the function logic to strip it.
           secure: false,
         }
       }

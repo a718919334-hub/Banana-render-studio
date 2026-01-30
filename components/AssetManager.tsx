@@ -174,9 +174,9 @@ export default function AssetManager() {
   };
 
   return (
-    <div className="flex flex-col h-full text-zinc-300 select-none relative">
+    <div className="flex flex-col h-full text-zinc-300 select-none relative bg-[#18181b] animate-fade-in-up">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-white/5 bg-[#18181b]">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-white/5 bg-[#18181b]/50 backdrop-blur-md z-10 sticky top-0">
         <div className="flex items-center gap-2 text-xs font-bold text-zinc-100 tracking-wider">
             <FolderOpen size={14} className="text-indigo-400" /> 
             ASSETS
@@ -184,7 +184,7 @@ export default function AssetManager() {
         <button 
             onClick={() => checkConnection()} 
             title={apiMsg || "Check API"}
-            className={`w-6 h-6 rounded flex items-center justify-center transition-all ${
+            className={`w-6 h-6 rounded flex items-center justify-center transition-all duration-300 ease-silky hover:scale-110 active:scale-95 ${
                 apiStatus === 'error' ? 'bg-red-500/10 text-red-400 animate-pulse' : 
                 apiStatus === 'ok' ? 'bg-emerald-500/10 text-emerald-400' : 
                 'bg-white/5 text-zinc-400 hover:bg-white/10 hover:text-zinc-200'
@@ -195,7 +195,7 @@ export default function AssetManager() {
       </div>
 
       {apiMsg && (
-        <div className={`px-4 py-2 text-[10px] font-mono border-b border-white/5 break-words ${
+        <div className={`px-4 py-2 text-[10px] font-mono border-b border-white/5 break-words animate-slide-in-right ${
             apiStatus === 'error' ? 'bg-red-900/20 text-red-300' : 
             apiStatus === 'checking' ? 'bg-blue-900/20 text-blue-300' :
             'bg-emerald-900/20 text-emerald-300'
@@ -207,25 +207,27 @@ export default function AssetManager() {
       <div className="flex-1 flex flex-col min-h-0">
         {/* Drop Zones */}
         <div className="p-4 grid grid-cols-2 gap-3 border-b border-white/5 bg-[#131315]">
-          <label className="flex flex-col items-center justify-center h-20 gap-2 border border-white/5 border-dashed rounded-lg cursor-pointer hover:border-indigo-500/50 hover:bg-indigo-500/5 transition-all group bg-[#18181b]">
-            <div className="p-1.5 rounded-full bg-zinc-800 group-hover:bg-indigo-500/20 transition-colors">
+          <label className="relative flex flex-col items-center justify-center h-20 gap-2 border border-white/5 border-dashed rounded-lg cursor-pointer transition-all duration-300 ease-silky hover:border-indigo-500/50 hover:bg-indigo-500/5 hover:scale-[1.02] active:scale-[0.98] group bg-[#18181b] overflow-hidden">
+            <div className="absolute inset-0 bg-indigo-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+            <div className="p-1.5 rounded-full bg-zinc-800 group-hover:bg-indigo-500/20 transition-colors relative z-10">
                 <ImageIcon size={14} className="text-zinc-400 group-hover:text-indigo-300 transition-colors"/>
             </div>
-            <span className="text-[10px] font-bold text-zinc-400 group-hover:text-indigo-300">Image</span>
+            <span className="text-[10px] font-bold text-zinc-400 group-hover:text-indigo-300 relative z-10">Image</span>
             <input type="file" className="hidden" multiple onChange={handleFileUpload} accept="image/*" />
           </label>
-          <label className="flex flex-col items-center justify-center h-20 gap-2 border border-white/5 border-dashed rounded-lg cursor-pointer hover:border-blue-500/50 hover:bg-blue-500/5 transition-all group bg-[#18181b]">
-            <div className="p-1.5 rounded-full bg-zinc-800 group-hover:bg-blue-500/20 transition-colors">
+          <label className="relative flex flex-col items-center justify-center h-20 gap-2 border border-white/5 border-dashed rounded-lg cursor-pointer transition-all duration-300 ease-silky hover:border-blue-500/50 hover:bg-blue-500/5 hover:scale-[1.02] active:scale-[0.98] group bg-[#18181b] overflow-hidden">
+             <div className="absolute inset-0 bg-blue-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+            <div className="p-1.5 rounded-full bg-zinc-800 group-hover:bg-blue-500/20 transition-colors relative z-10">
                  <Box size={14} className="text-zinc-400 group-hover:text-blue-300 transition-colors"/>
             </div>
-            <span className="text-[10px] font-bold text-zinc-400 group-hover:text-blue-300">GLB Model</span>
+            <span className="text-[10px] font-bold text-zinc-400 group-hover:text-blue-300 relative z-10">GLB Model</span>
             <input type="file" className="hidden" multiple onChange={handleModelUpload} accept=".glb,.gltf" />
           </label>
         </div>
 
         {/* Asset List */}
         <div className="flex-1 overflow-y-auto p-2 space-y-1 custom-scrollbar bg-[#18181b]">
-          {assets.map((item) => {
+          {assets.map((item, index) => {
              const isCompleted = item.status === AssetStatus.COMPLETED;
              const canAdd = isCompleted && !!item.modelUrl;
              return (
@@ -251,14 +253,17 @@ export default function AssetManager() {
                       }
                   }}
                   onMouseLeave={() => setHoveredAsset(null)}
-                  className={`group relative p-2 rounded-lg flex items-center gap-3 transition-all border border-transparent hover:bg-[#27272a] hover:border-white/5 ${canAdd ? 'cursor-grab active:cursor-grabbing' : ''}`}
+                  className={`group relative p-2 rounded-lg flex items-center gap-3 transition-all duration-300 ease-silky border border-transparent 
+                  hover:bg-[#27272a] hover:border-white/5 hover:scale-[1.01] hover:shadow-lg hover:shadow-black/20
+                  ${canAdd ? 'cursor-grab active:cursor-grabbing' : ''} animate-fade-in-up`}
+                  style={{ animationDelay: `${index * 50}ms` }}
                 >
-                  <div className={`text-zinc-500 ${canAdd ? 'group-hover:text-zinc-300' : 'opacity-20'}`}><GripVertical size={12} /></div>
+                  <div className={`text-zinc-500 transition-all duration-300 ${canAdd ? 'group-hover:text-zinc-300' : 'opacity-20'}`}><GripVertical size={12} /></div>
                   
-                  <div className="relative w-10 h-10 rounded bg-zinc-800 overflow-hidden shrink-0 border border-white/5">
+                  <div className="relative w-10 h-10 rounded bg-zinc-800 overflow-hidden shrink-0 border border-white/5 transition-transform duration-300 group-hover:scale-105">
                      <img src={item.imageUrl} className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" alt="" />
                      {item.modelUrl && (
-                        <div className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-[1px] opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-[1px] opacity-0 group-hover:opacity-100 transition-opacity duration-300">
                             <Box size={14} className="text-white drop-shadow-md" />
                         </div>
                      )}
@@ -267,8 +272,8 @@ export default function AssetManager() {
                   <div className="flex-1 min-w-0">
                     <div className="text-xs font-bold truncate text-zinc-200 group-hover:text-white transition-colors">{item.originalName}</div>
                     <div className="flex items-center gap-1.5 mt-0.5">
-                        <div className={`w-1.5 h-1.5 rounded-full ${
-                            item.status === AssetStatus.COMPLETED ? 'bg-emerald-500' :
+                        <div className={`w-1.5 h-1.5 rounded-full transition-colors duration-500 ${
+                            item.status === AssetStatus.COMPLETED ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' :
                             item.status === AssetStatus.PROCESSING ? 'bg-indigo-500 animate-pulse' :
                             item.status === AssetStatus.ERROR ? 'bg-red-500' : 'bg-zinc-600'
                         }`} />
@@ -277,11 +282,11 @@ export default function AssetManager() {
                   </div>
 
                   {/* Actions Overlay / Row */}
-                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all translate-x-2 group-hover:translate-x-0 bg-[#27272a]/90 backdrop-blur pl-2 rounded-l">
+                  <div className="flex items-center gap-1 opacity-0 translate-x-4 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300 ease-silky bg-[#27272a]/90 backdrop-blur pl-2 rounded-l">
                       {(item.status === AssetStatus.PENDING || item.status === AssetStatus.ERROR) && (
                           <button 
                             onClick={(e) => handleGenerate(e, item.id, item.imageUrl, item.originalName)} 
-                            className="p-1.5 rounded bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-900/20 transition-all"
+                            className="p-1.5 rounded bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-900/20 transition-all duration-200 hover:scale-110 active:scale-95"
                             title="Generate 3D"
                           >
                             <Sparkles size={14} fill="currentColor" />
@@ -296,7 +301,7 @@ export default function AssetManager() {
                          <>
                           <button 
                             onClick={() => addModelToScene(item.modelUrl!, item.originalName)} 
-                            className="p-1.5 rounded bg-zinc-700 hover:bg-zinc-600 text-zinc-200 transition-all"
+                            className="p-1.5 rounded bg-zinc-700 hover:bg-zinc-600 text-zinc-200 transition-all duration-200 hover:scale-110 active:scale-95"
                             title="Add to Scene"
                           >
                             <Plus size={14} />
@@ -304,7 +309,7 @@ export default function AssetManager() {
                           
                           <button 
                              onClick={(e) => handleDownloadFile(e, item.modelUrl!, item.originalName)}
-                             className="p-1.5 rounded bg-zinc-700 hover:bg-zinc-600 text-zinc-200 transition-all"
+                             className="p-1.5 rounded bg-zinc-700 hover:bg-zinc-600 text-zinc-200 transition-all duration-200 hover:scale-110 active:scale-95"
                              title="Download GLB"
                            >
                              <Download size={14} />
@@ -323,7 +328,7 @@ export default function AssetManager() {
                                  setTimeout(() => setDeletingId(null), 3000);
                              }
                         }}
-                        className={`p-1.5 rounded transition-all ${
+                        className={`p-1.5 rounded transition-all duration-200 hover:scale-110 active:scale-95 ${
                             deletingId === item.id 
                             ? 'bg-red-600 text-white hover:bg-red-700 shadow-lg shadow-red-900/50' 
                             : 'hover:bg-red-900/50 text-zinc-500 hover:text-red-400'
@@ -342,13 +347,13 @@ export default function AssetManager() {
       {/* --- HOVER PREVIEW POPUP --- */}
       {hoveredAsset && (
           <div 
-             className="fixed z-[100] w-64 h-64 bg-[#18181b] rounded-xl border border-white/10 shadow-2xl flex flex-col overflow-hidden animate-in fade-in slide-in-from-left-2 duration-200 pointer-events-none"
+             className="fixed z-[100] w-64 h-64 bg-[#18181b]/95 backdrop-blur-xl rounded-xl border border-white/10 shadow-2xl flex flex-col overflow-hidden animate-pop-in pointer-events-none transition-all duration-300 ease-silky"
              style={{ 
                  left: '330px', 
                  top: Math.min(window.innerHeight - 270, Math.max(20, hoveredAsset.top - 100))
              }}
           >
-              <div className="px-3 py-2 border-b border-white/5 bg-zinc-900/90 flex justify-between items-center shrink-0">
+              <div className="px-3 py-2 border-b border-white/5 bg-zinc-900/80 flex justify-between items-center shrink-0">
                 <span className="text-[10px] font-bold text-zinc-300 uppercase tracking-wider truncate max-w-[180px]">{hoveredAsset.name}</span>
                 <span className="text-[9px] bg-indigo-500/20 text-indigo-300 px-1.5 py-0.5 rounded font-bold">PREVIEW</span>
              </div>

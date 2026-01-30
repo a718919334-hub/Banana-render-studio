@@ -77,8 +77,7 @@ const DEFAULT_CAMERA_ID = uuidv4();
 
 export const useAppStore = create<AppState>((set, get) => ({
   // CONFIGURATION:
-  // Default to the provided production Cloudflare Worker URL.
-  // We use localStorage to persist changes, but fallback to the specific remote URL.
+  // Default to the provided Cloudflare Worker URL
   backendUrl: localStorage.getItem('tripo_backend_url') || 'https://soft-wave-9c83.a718919334.workers.dev', 
 
   assets: [],
@@ -97,7 +96,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       id: DEFAULT_CAMERA_ID,
       type: 'camera',
       name: 'Main Camera',
-      transform: { position: [0, 2, 6], rotation: [0, 0, 0], scale: [1, 1, 1] },
+      transform: { position: [0, 1.0, 3.5], rotation: [-0.1, 0, 0], scale: [1, 1, 1] },
       visible: true,
       locked: false,
       cameraProps: { fov: 45 }
@@ -110,12 +109,13 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   renderSettings: {
     autoRotate: false, 
-    gridVisible: true, // Enable grid by default for better orientation
+    gridVisible: false, // Changed default to false
   },
   
   cameraState: {
-    position: [5, 5, 5],
-    target: [0, 0, 0],
+    // Editor Camera Default
+    position: [2, 1.5, 4],
+    target: [0, 0.5, 0],
     fov: 50
   },
   cameraVersion: 0,
@@ -322,7 +322,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   })),
 
   resetCamera: () => set((state) => ({
-      cameraState: { position: [5, 5, 5], target: [0, 0, 0], fov: 50 },
+      cameraState: { position: [2, 1.5, 4], target: [0, 0.5, 0], fov: 50 },
       cameraVersion: state.cameraVersion + 1
   })),
 

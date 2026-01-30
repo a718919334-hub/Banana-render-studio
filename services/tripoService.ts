@@ -12,7 +12,7 @@ interface TripoResponse {
 
 // Points to the Cloudflare Worker path, dynamically retrieved from store
 const getApiUrl = (endpoint: string) => {
-  // Use the specific remote Worker URL as default
+  // Use the Cloudflare worker as default if store is empty
   let baseUrl = useAppStore.getState().backendUrl || 'https://soft-wave-9c83.a718919334.workers.dev';
   
   // Robustly handle trailing slashes in baseUrl

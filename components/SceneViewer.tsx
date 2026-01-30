@@ -27,6 +27,7 @@ declare global {
       hemisphereLight: any;
       boxGeometry: any;
       cylinderGeometry: any;
+      orthographicCamera: any; // Add this definition
       [elemName: string]: any;
     }
   }
@@ -282,7 +283,7 @@ class ModelErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryStat
     if (this.state.hasError) {
       return (
         <Html center>
-           <div className="bg-[#1f0f0f] border border-red-900 p-6 rounded-lg text-white flex flex-col items-center gap-4 shadow-2xl select-none w-64 z-50 pointer-events-none">
+           <div className="bg-[#1f0f0f] border border-red-900 p-6 rounded-lg text-white flex flex-col items-center gap-4 shadow-2xl select-none w-64 z-50 pointer-events-none animate-pop-in">
               <AlertTriangle size={32} className="text-red-500" />
               <div className="text-center">
                   <div className="font-bold mb-1">Error Loading Object</div>
@@ -313,7 +314,7 @@ function ModelLoader() {
   const { progress } = useProgress();
   return (
     <Html center>
-      <div className="flex flex-col items-center gap-2 text-white bg-[#09090b] p-6 rounded-2xl border border-white/10 shadow-2xl z-50">
+      <div className="flex flex-col items-center gap-2 text-white bg-[#09090b]/80 backdrop-blur-md p-6 rounded-2xl border border-white/10 shadow-2xl z-50 animate-pop-in">
         <Loader2 className="animate-spin text-indigo-500" size={32} />
         <div className="text-xs font-bold tracking-wider">{progress.toFixed(0)}%</div>
       </div>
@@ -375,7 +376,11 @@ const LightInstance: React.FC<LightInstanceProps> = ({ obj, isSelected, transfor
                     color={obj.lightProps?.color || '#ffffff'}
                     shadow-mapSize={[2048, 2048]}
                     target-position={[0, 0, 0]} 
-                />
+                    shadow-bias={-0.0005} // Optimization: Reduce shadow acne
+                >
+                    {/* Optimization: Ensure shadow camera covers typical scene bounds */}
+                    <orthographicCamera attach="shadow-camera" args={[-15, 15, 15, -15, 0.1, 100]} />
+                </directionalLight>
             </group>
             
             {isSelected && !obj.locked && obj.visible && groupRef.current && (
@@ -694,23 +699,23 @@ const RenderWindow = ({ onClose, onCaptureRequest }: any) => {
     };
 
     return (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 animate-in fade-in duration-300">
-            <div className="w-[1024px] h-[700px] bg-[#27272a] border border-white/20 rounded-xl shadow-2xl flex flex-col overflow-hidden relative ring-1 ring-white/10">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm animate-fade-in-up duration-300">
+            <div className="w-[1024px] h-[700px] bg-[#27272a] border border-white/20 rounded-xl shadow-2xl flex flex-col overflow-hidden relative ring-1 ring-white/10 animate-pop-in">
                 <div className="h-14 bg-[#27272a] flex items-center justify-between px-6 border-b border-white/10 shrink-0">
                     <div className="flex items-center gap-2 text-white font-bold tracking-wide">
                         <div className="p-1.5 rounded-lg bg-indigo-500/20 text-indigo-400"><Aperture size={16}/></div>
                         <span>AI Render Studio</span>
                         <span className="text-[10px] bg-indigo-600 text-white px-2 py-0.5 rounded-full font-bold ml-2">Gemini 2.5 Flash</span>
                     </div>
-                    <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-full text-zinc-400 hover:text-white transition"><X size={18}/></button>
+                    <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-full text-zinc-400 hover:text-white transition-all duration-200 hover:rotate-90"><X size={18}/></button>
                 </div>
                 
                 <div className="flex-1 flex min-h-0">
                     <div className="flex-1 bg-black relative p-6 flex items-center justify-center">
                          <div className="absolute inset-0 opacity-20" style={{ backgroundImage: 'radial-gradient(circle at center, #1e1b4b 0%, transparent 70%)' }} />
-                         <div className="relative max-w-full max-h-full shadow-lg z-10 rounded-lg overflow-hidden border border-white/10 bg-black">
+                         <div className="relative max-w-full max-h-full shadow-lg z-10 rounded-lg overflow-hidden border border-white/10 bg-black transition-all duration-500">
                              {renderResult ? (
-                                <img src={renderResult} className="max-w-full max-h-full object-contain" alt="Result" />
+                                <img src={renderResult} className="max-w-full max-h-full object-contain animate-fade-in-up" alt="Result" />
                              ) : baseImage ? (
                                 <img src={baseImage} className="max-w-full max-h-full object-contain opacity-80" alt="Preview" />
                              ) : (
@@ -718,11 +723,11 @@ const RenderWindow = ({ onClose, onCaptureRequest }: any) => {
                              )}
                              
                              {isRendering && (
-                                 <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center text-white z-20">
+                                 <div className="absolute inset-0 bg-black/80 backdrop-blur-sm flex flex-col items-center justify-center text-white z-20 animate-fade-in-up">
                                      <div className="relative">
                                          <Loader2 size={48} className="relative animate-spin text-indigo-500 mb-4" />
                                      </div>
-                                     <div className="font-bold tracking-widest text-sm text-indigo-300">PROCESSING...</div>
+                                     <div className="font-bold tracking-widest text-sm text-indigo-300 animate-pulse">PROCESSING...</div>
                                  </div>
                              )}
                          </div>
@@ -731,7 +736,7 @@ const RenderWindow = ({ onClose, onCaptureRequest }: any) => {
                     <div className="w-[440px] bg-[#27272a] border-l border-white/10 flex flex-col p-6 gap-6 overflow-y-auto">
                         
                         {/* Camera Context Display */}
-                        <div className="p-3 bg-black/20 rounded-lg border border-white/5">
+                        <div className="p-3 bg-black/20 rounded-lg border border-white/5 animate-slide-in-right stagger-1">
                             <label className="text-[10px] font-bold text-zinc-500 mb-2 flex items-center gap-2 uppercase tracking-wider">
                                 <MapPin size={10} /> Camera Context
                             </label>
@@ -751,11 +756,11 @@ const RenderWindow = ({ onClose, onCaptureRequest }: any) => {
                         </div>
 
                         {/* Aspect Ratio */}
-                        <div>
+                        <div className="animate-slide-in-right stagger-2">
                             <label className="text-xs font-bold text-zinc-300 mb-3 flex items-center gap-2 uppercase tracking-wider"><Ratio size={12} /> Aspect Ratio</label>
                             <div className="grid grid-cols-2 gap-2">
                                 {RESOLUTION_PRESETS.map((preset, idx) => (
-                                    <button key={idx} onClick={() => setSelectedPresetIdx(idx)} className={`flex flex-col items-center justify-center p-3 rounded-lg border transition-all ${selectedPresetIdx === idx ? 'bg-indigo-500/20 border-indigo-500/50 text-indigo-300 shadow-sm' : 'bg-[#3f3f46] border-white/5 text-zinc-300 hover:bg-[#52525b] hover:text-white'}`}>
+                                    <button key={idx} onClick={() => setSelectedPresetIdx(idx)} className={`flex flex-col items-center justify-center p-3 rounded-lg border transition-all duration-300 ease-silky hover:scale-[1.02] active:scale-[0.98] ${selectedPresetIdx === idx ? 'bg-indigo-500/20 border-indigo-500/50 text-indigo-300 shadow-sm' : 'bg-[#3f3f46] border-white/5 text-zinc-300 hover:bg-[#52525b] hover:text-white'}`}>
                                         <div className="text-xs font-bold mb-1">{preset.ratio}</div>
                                         <div className="text-[10px] opacity-60">{preset.label}</div>
                                     </button>
@@ -764,7 +769,7 @@ const RenderWindow = ({ onClose, onCaptureRequest }: any) => {
                         </div>
 
                         {/* Prompt & AI Suggestions Area (Side by Side) */}
-                        <div className="flex-1 flex flex-col min-h-0">
+                        <div className="flex-1 flex flex-col min-h-0 animate-slide-in-right stagger-3">
                              <div className="flex items-center justify-between mb-2">
                                 <label className="text-xs font-bold text-zinc-300 flex items-center gap-2 uppercase tracking-wider"><Wand2 size={12} /> Prompt</label>
                                 {isAnalyzing && <span className="text-[10px] text-zinc-500 animate-pulse flex items-center gap-1"><Loader2 size={10} className="animate-spin"/> Analyzing Scene...</span>}
@@ -776,7 +781,7 @@ const RenderWindow = ({ onClose, onCaptureRequest }: any) => {
                                     value={prompt} 
                                     onChange={(e) => setPrompt(e.target.value)} 
                                     placeholder="Describe the style (e.g. Cyberpunk, Claymation, Realistic)..." 
-                                    className="flex-1 bg-[#18181b] border border-white/10 rounded-lg p-3 text-sm text-zinc-200 focus:outline-none focus:border-indigo-500 focus:bg-[#000] resize-none transition-all placeholder:text-zinc-600 h-full" 
+                                    className="flex-1 bg-[#18181b] border border-white/10 rounded-lg p-3 text-sm text-zinc-200 focus:outline-none focus:border-indigo-500 focus:bg-[#000] resize-none transition-all duration-300 placeholder:text-zinc-600 h-full focus:shadow-[0_0_15px_rgba(99,102,241,0.1)]" 
                                 />
 
                                  {/* Suggestions List (Right Side) */}
@@ -794,11 +799,11 @@ const RenderWindow = ({ onClose, onCaptureRequest }: any) => {
                                              <button 
                                                  key={i}
                                                  onClick={() => setPrompt(s)}
-                                                 className="text-left text-[10px] p-2 bg-[#18181b] border border-white/5 hover:border-indigo-500/50 hover:bg-indigo-500/10 rounded-lg text-zinc-400 hover:text-indigo-200 transition-all leading-tight shrink-0 group relative"
+                                                 className="text-left text-[10px] p-2 bg-[#18181b] border border-white/5 hover:border-indigo-500/50 hover:bg-indigo-500/10 rounded-lg text-zinc-400 hover:text-indigo-200 transition-all duration-200 leading-tight shrink-0 group relative hover:scale-[1.02]"
                                                  title={s}
                                              >
                                                  <span className="line-clamp-3 group-hover:line-clamp-none transition-all">{s}</span>
-                                                 <div className="absolute right-1 bottom-1 opacity-0 group-hover:opacity-100 text-indigo-400">
+                                                 <div className="absolute right-1 bottom-1 opacity-0 group-hover:opacity-100 text-indigo-400 transition-opacity">
                                                      <ArrowRight size={8} />
                                                  </div>
                                              </button>
@@ -812,12 +817,12 @@ const RenderWindow = ({ onClose, onCaptureRequest }: any) => {
                              </div>
                         </div>
 
-                        <div className="mt-auto flex flex-col gap-3 pt-4 border-t border-white/5">
-                            <button onClick={handleRender} disabled={isRendering} className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl shadow-lg shadow-indigo-900/40 disabled:opacity-50 flex items-center justify-center gap-2 transition-all hover:translate-y-[-1px]">
+                        <div className="mt-auto flex flex-col gap-3 pt-4 border-t border-white/5 animate-slide-in-right stagger-4">
+                            <button onClick={handleRender} disabled={isRendering} className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl shadow-lg shadow-indigo-900/40 disabled:opacity-50 flex items-center justify-center gap-2 transition-all duration-300 hover:scale-[1.02] active:scale-[0.98]">
                                 <Sparkles size={16} fill="currentColor" /> {isRendering ? 'Rendering...' : 'Generate Render'}
                             </button>
                             {renderResult && (
-                                <a href={renderResult} download={`render-${Date.now()}.png`} className="w-full py-2.5 bg-[#3f3f46] hover:bg-[#52525b] text-zinc-200 font-bold rounded-xl border border-white/10 flex items-center justify-center gap-2 transition-all"><Download size={14} /> Save Image</a>
+                                <a href={renderResult} download={`render-${Date.now()}.png`} className="w-full py-2.5 bg-[#3f3f46] hover:bg-[#52525b] text-zinc-200 font-bold rounded-xl border border-white/10 flex items-center justify-center gap-2 transition-all hover:scale-[1.02]"><Download size={14} /> Save Image</a>
                             )}
                         </div>
                     </div>
@@ -939,8 +944,8 @@ export default function SceneViewer() {
       
       {/* Absolute "AI RENDER" button removed from here. */}
 
-      <div className="absolute top-20 right-4 z-10 pointer-events-auto flex flex-col items-end gap-3">
-          <div className="bg-[#18181b] border border-white/5 p-4 rounded-2xl shadow-lg shadow-black/20 text-[10px] font-mono text-zinc-400 min-w-[160px] flex flex-col gap-2 select-none group hover:border-white/10 transition-colors">
+      <div className="absolute top-20 right-4 z-10 pointer-events-auto flex flex-col items-end gap-3 animate-slide-in-right">
+          <div className="bg-[#18181b]/80 backdrop-blur-md border border-white/5 p-4 rounded-2xl shadow-lg shadow-black/20 text-[10px] font-mono text-zinc-400 min-w-[160px] flex flex-col gap-2 select-none group hover:border-white/10 transition-colors duration-300">
              <div className="flex justify-between items-center border-b border-white/5 pb-2 mb-1 opacity-80">
                  <div className="flex items-center gap-1.5 font-sans font-bold tracking-wider text-zinc-300"><Activity size={12} className="text-emerald-500" /> STATISTICS</div>
              </div>
@@ -969,13 +974,13 @@ export default function SceneViewer() {
       {showRenderWindow && <RenderWindow onClose={() => setShowRenderWindow(false)} onCaptureRequest={() => captureRef.current ? captureRef.current() : null} />}
 
       {sceneObjects.length === 0 && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center text-zinc-500 z-0 pointer-events-none">
+          <div className="absolute inset-0 flex flex-col items-center justify-center text-zinc-500 z-0 pointer-events-none animate-fade-in-up">
               <div className="w-24 h-24 rounded-full bg-white/5 flex items-center justify-center mb-6 border border-white/5 animate-pulse">
                   <Box size={40} className="opacity-20 text-white" />
               </div>
               <div className="text-2xl font-bold mb-2 text-white/10 tracking-tight">Scene Empty</div>
               <div className="text-sm opacity-50 mb-6 text-white/30">Drag and drop assets or create new ones</div>
-              <button onClick={handleLoadDemo} className="pointer-events-auto px-6 py-2.5 bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/30 rounded-full text-indigo-300 text-sm font-bold flex items-center gap-2 transition-all hover:scale-105">
+              <button onClick={handleLoadDemo} className="pointer-events-auto px-6 py-2.5 bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/30 rounded-full text-indigo-300 text-sm font-bold flex items-center gap-2 transition-all duration-300 hover:scale-105 active:scale-95">
                   <Sparkles size={16} /> Load Demo Asset
               </button>
           </div>
@@ -1070,7 +1075,7 @@ export default function SceneViewer() {
          
          {/* Generation Progress Indicator */}
          {isGenerating && (
-             <div className="bg-[#18181b]/90 backdrop-blur border border-white/10 rounded-xl p-3 shadow-xl animate-in slide-in-from-bottom-2 fade-in">
+             <div className="bg-[#18181b]/90 backdrop-blur border border-white/10 rounded-xl p-3 shadow-xl animate-fade-in-up">
                  <div className="flex justify-between items-center text-xs font-bold text-zinc-300 mb-2">
                      <div className="flex items-center gap-2">
                          <div className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"/>
@@ -1080,21 +1085,21 @@ export default function SceneViewer() {
                  </div>
                  <div className="h-1.5 w-full bg-zinc-800 rounded-full overflow-hidden">
                      <div 
-                        className="h-full bg-indigo-500 transition-all duration-500 ease-out shadow-[0_0_10px_rgba(99,102,241,0.5)]" 
+                        className="h-full bg-indigo-500 transition-all duration-700 ease-silky shadow-[0_0_10px_rgba(99,102,241,0.5)]" 
                         style={{ width: `${progress}%` }} 
                      />
                  </div>
              </div>
          )}
 
-         <div className="bg-[#18181b] border border-white/5 p-2 rounded-2xl shadow-lg shadow-black/50 flex gap-3 ring-1 ring-white/5 transition-all focus-within:ring-indigo-500/50 focus-within:border-indigo-500/50">
+         <div className="bg-[#18181b]/80 backdrop-blur-md border border-white/5 p-2 rounded-2xl shadow-lg shadow-black/50 flex gap-3 ring-1 ring-white/5 transition-all duration-300 ease-silky focus-within:ring-indigo-500/50 focus-within:border-indigo-500/50 focus-within:shadow-[0_0_20px_rgba(99,102,241,0.15)] focus-within:scale-[1.01]">
             <input 
                 type="text" value={prompt} onChange={(e) => setPrompt(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleTextTo3D()}
                 placeholder={isGenerating ? "Generating 3D model..." : "Describe a 3D object to generate..."}
                 disabled={isGenerating}
                 className="flex-1 bg-transparent border-none py-3 px-4 text-sm text-zinc-200 focus:outline-none placeholder:text-zinc-500 font-medium disabled:opacity-50"
             />
-            <button onClick={handleTextTo3D} disabled={isGenerating || !prompt.trim()} className="bg-indigo-600 hover:bg-indigo-500 text-white px-6 rounded-xl font-bold text-sm flex items-center gap-2 disabled:opacity-50 transition-all shadow-lg shadow-indigo-900/30">
+            <button onClick={handleTextTo3D} disabled={isGenerating || !prompt.trim()} className="bg-indigo-600 hover:bg-indigo-500 text-white px-6 rounded-xl font-bold text-sm flex items-center gap-2 disabled:opacity-50 transition-all duration-300 ease-silky shadow-lg shadow-indigo-900/30 hover:scale-105 active:scale-95">
                 {isGenerating ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} fill="currentColor" />}
                 Generate
             </button>

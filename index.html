@@ -5,6 +5,39 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>GCP 3D Asset Pipeline</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            transitionTimingFunction: {
+              'silky': 'cubic-bezier(0.16, 1, 0.3, 1)',
+            },
+            transitionDuration: {
+              '400': '400ms',
+            },
+            animation: {
+              'fade-in-up': 'fadeInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+              'pop-in': 'popIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+              'slide-in-right': 'slideInRight 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+            },
+            keyframes: {
+              fadeInUp: {
+                '0%': { opacity: '0', transform: 'translateY(15px)' },
+                '100%': { opacity: '1', transform: 'translateY(0)' },
+              },
+              popIn: {
+                '0%': { opacity: '0', transform: 'scale(0.92) translateY(5px)' },
+                '100%': { opacity: '1', transform: 'scale(1) translateY(0)' },
+              },
+              slideInRight: {
+                '0%': { opacity: '0', transform: 'translateX(20px)' },
+                '100%': { opacity: '1', transform: 'translateX(0)' },
+              }
+            }
+          }
+        }
+      }
+    </script>
     <style>
       body, html, #root {
         height: 100%;
@@ -25,7 +58,7 @@
         height: 6px;
       }
       ::-webkit-scrollbar-track {
-        background: #09090b;
+        background: transparent;
       }
       ::-webkit-scrollbar-thumb {
         background: #3f3f46; /* Zinc 700 */
@@ -35,6 +68,13 @@
       ::-webkit-scrollbar-thumb:hover {
         background: #52525b; /* Zinc 600 */
       }
+      
+      /* Staggered Animation Utilities */
+      .stagger-1 { animation-delay: 50ms; }
+      .stagger-2 { animation-delay: 100ms; }
+      .stagger-3 { animation-delay: 150ms; }
+      .stagger-4 { animation-delay: 200ms; }
+      .stagger-5 { animation-delay: 250ms; }
     </style>
   <script type="importmap">
 {

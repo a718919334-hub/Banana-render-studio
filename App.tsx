@@ -3,7 +3,7 @@ import AssetManager from './components/AssetManager';
 import SceneViewer from './components/SceneViewer';
 import RendererPanel from './components/RendererPanel';
 import { useAppStore } from './store/useAppStore';
-import { CheckCircle, AlertCircle, Info, X, Command, Link, ExternalLink } from 'lucide-react';
+import { CheckCircle, AlertCircle, Info, X, Aperture, Link, ExternalLink } from 'lucide-react';
 
 const ToastContainer = () => {
     const { notifications, removeNotification } = useAppStore();
@@ -32,6 +32,9 @@ export default function App() {
   const { backendUrl, setBackendUrl } = useAppStore();
   const [isEditingUrl, setIsEditingUrl] = useState(false);
   const [tempUrl, setTempUrl] = useState(backendUrl);
+  
+  // This constant matches the one in tripoService and SceneViewer
+  const DEFAULT_BACKEND_URL = 'https://soft-wave-9c83.a718919334.workers.dev';
 
   // Global Undo/Redo Listener
   useEffect(() => {
@@ -64,7 +67,7 @@ export default function App() {
       
       // Default reset
       if (!finalUrl) {
-          finalUrl = 'https://soft-wave-9c83.a718919334.workers.dev';
+          finalUrl = DEFAULT_BACKEND_URL;
       } 
       // Auto-protocol for external domains (if not starting with / or http)
       else if (!finalUrl.startsWith('/') && !finalUrl.startsWith('http')) {
@@ -89,14 +92,14 @@ export default function App() {
   return (
     <div className="flex flex-col h-screen w-screen overflow-hidden text-zinc-300 font-sans selection:bg-indigo-500/30 bg-[#09090b]">
       {/* 1. Header / Status Bar - Dark Layer 1 */}
-      <div className="h-12 flex items-center px-4 justify-between shrink-0 z-50 bg-[#18181b] border-b border-white/5">
-         <div className="flex items-center gap-3">
-             <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center shadow-lg shadow-indigo-500/10">
-                <Command size={16} className="text-white" />
+      <div className="h-16 flex items-center px-6 justify-between shrink-0 z-50 bg-[#18181b] border-b border-white/5">
+         <div className="flex items-center gap-4">
+             <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center shadow-lg shadow-indigo-500/20">
+                <Aperture size={24} className="text-white" />
              </div>
              <div>
-                <div className="text-sm font-bold text-white tracking-wide">Banana Render</div>
-                <div className="text-[10px] text-zinc-500 font-bold tracking-wider uppercase">Studio Pro</div>
+                <div className="text-xl font-bold text-white tracking-wide">Banana Render</div>
+                <div className="text-xs text-zinc-500 font-bold tracking-wider uppercase">Studio Pro</div>
              </div>
          </div>
          
@@ -122,16 +125,16 @@ export default function App() {
                         setIsEditingUrl(true);
                     }}
                     className={`flex items-center gap-2 px-3 py-1 rounded-full border transition-all text-[10px] font-bold tracking-wide group ${
-                        backendUrl === '/api/tripo' 
+                        backendUrl === DEFAULT_BACKEND_URL 
                         ? 'bg-[#09090b] border-white/10 text-zinc-400 hover:text-white hover:border-indigo-500/30' 
                         : 'bg-indigo-900/20 border-indigo-500/30 text-indigo-300 hover:bg-indigo-900/30'
                     }`}
                     title="Configure Backend Service URL"
                 >
-                    {backendUrl === '/api/tripo' ? <Link size={12} /> : <ExternalLink size={12} />}
-                    {backendUrl === '/api/tripo' ? 'LOCAL PROXY' : 'CUSTOM BACKEND'}
+                    {backendUrl === DEFAULT_BACKEND_URL ? <Link size={12} /> : <ExternalLink size={12} />}
+                    {backendUrl === DEFAULT_BACKEND_URL ? 'CLOUD PROXY' : 'CUSTOM BACKEND'}
                     
-                    {backendUrl !== '/api/tripo' && (
+                    {backendUrl !== DEFAULT_BACKEND_URL && (
                         <span className="opacity-50 text-[9px] truncate max-w-[100px] hidden sm:block border-l border-white/10 pl-2 ml-1">
                             {backendUrl.replace(/^https?:\/\//, '')}
                         </span>
