@@ -2,7 +2,7 @@ import React, { Suspense, useEffect, useRef, useState, useMemo, ReactNode, Compo
 import { Canvas, useThree, useFrame } from '@react-three/fiber';
 import { OrbitControls, useGLTF, Grid, TransformControls, Html, useProgress, Environment, GizmoHelper, GizmoViewport, ContactShadows, Billboard, useHelper, PerspectiveCamera } from '@react-three/drei';
 import { useAppStore } from '../store/useAppStore';
-import { Zap, Loader2, Sparkles, AlertTriangle, Box, RefreshCw, Aperture, Ratio, Wand2, X, Download, Video, Lock, Layers, Triangle, Activity, MapPin, Lightbulb, ArrowRight, Maximize2 } from 'lucide-react';
+import { Zap, Loader2, Sparkles, AlertTriangle, Box, RefreshCw, Aperture, Ratio, Wand2, X, Download, Video, Lock, Layers, Triangle, Activity, MapPin, Lightbulb, ArrowRight, Maximize2, Mic, MicOff } from 'lucide-react';
 import * as THREE from 'three';
 import { DirectionalLightHelper, CameraHelper } from 'three';
 import { v4 as uuidv4 } from 'uuid';
@@ -10,6 +10,7 @@ import { AssetStatus, ModelTransform, SceneObject, TransformMode } from '../type
 import { createTextTo3DTask, pollTripoTask } from '../services/tripoService';
 import { generateRefinedImage, optimizePromptFor3D, analyzeSceneAndSuggestPrompts } from '../services/geminiService';
 import Toolbar from './Toolbar';
+import { GoogleGenAI, LiveServerMessage, Modality } from "@google/genai";
 
 // Fix for missing React Three Fiber types in strict environments
 declare global {
@@ -46,6 +47,28 @@ const RESOLUTION_PRESETS = [
 
 // IMPORTANT: Configure Draco Loader globally once to avoid re-initialization loops
 useGLTF.setDecoderPath(DRACO_URL);
+
+// --- Audio Helpers for Live API ---
+function encode(bytes: Uint8Array) {
+  let binary = '';
+  const len = bytes.byteLength;
+  for (let i = 0; i < len; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
+}
+
+function createBlob(data: Float32Array): any {
+  const l = data.length;
+  const int16 = new Int16Array(l);
+  for (let i = 0; i < l; i++) {
+    int16[i] = data[i] * 32768;
+  }
+  return {
+    data: encode(new Uint8Array(int16.buffer)),
+    mimeType: 'audio/pcm;rate=16000',
+  };
+}
 
 // --- Scene Stats Component ---
 function SceneStatsUpdater({ onUpdate }: { onUpdate: (stats: { verts: number, tris: number, objects: number }) => void }) {
@@ -905,18 +928,178 @@ export default function SceneViewer() {
   const [stats, setStats] = useState({ verts: 0, tris: 0, objects: 0 });
   const captureRef = useRef<(() => string) | null>(null);
 
-  const handleTextTo3D = async () => {
-    if (!prompt.trim()) return;
+  // --- Voice Input State ---
+  const [isRecording, setIsRecording] = useState(false);
+  const [micActive, setMicActive] = useState(false);
+  // Ref to hold the active session object to allow closing it
+  const activeSessionRef = useRef<any>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const scriptProcessorRef = useRef<ScriptProcessorNode | null>(null);
+  
+  // Ref for real-time transcription sync
+  const transcriptionRef = useRef<string>("");
+
+  const handleMicToggle = async () => {
+    if (isRecording) {
+      // STOPPING
+      setIsRecording(false);
+      setMicActive(false);
+
+      // Clean up Audio
+      if (scriptProcessorRef.current) {
+         scriptProcessorRef.current.disconnect();
+         scriptProcessorRef.current = null;
+      }
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop());
+        streamRef.current = null;
+      }
+      if (audioContextRef.current) {
+        audioContextRef.current.close();
+        audioContextRef.current = null;
+      }
+
+      // Close Session
+      if (activeSessionRef.current) {
+          try {
+              activeSessionRef.current.close();
+          } catch(e) { console.error("Error closing session", e); }
+          activeSessionRef.current = null;
+      }
+      
+      addNotification('info', 'Voice input stopped');
+
+      // AUTO-TRIGGER GENERATION if text exists
+      const capturedText = transcriptionRef.current.trim();
+      if (capturedText) {
+          addNotification('success', 'Processing Voice Command...');
+          // Pass captured text directly to avoid state update lag
+          handleTextTo3D(capturedText);
+      }
+      return;
+    }
+
+    // STARTING
+    try {
+      if (!process.env.API_KEY) {
+          addNotification('error', 'Missing API Key for Voice Input');
+          return;
+      }
+
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
+      
+      // Init UI state
+      setIsRecording(true);
+      setMicActive(true);
+      
+      // Reset ref and prompt for new command session
+      // We start with current prompt if user typed something, to allow appending
+      transcriptionRef.current = prompt; 
+      // Note: We don't clear prompt here to allow user to see what they are adding to
+      
+      addNotification('info', 'Listening... Speak now');
+
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      
+      // Connect
+      const sessionPromise = ai.live.connect({
+        model: 'gemini-2.5-flash-native-audio-preview-12-2025',
+        callbacks: {
+            onopen: () => {
+                console.log("Gemini Live Session Opened");
+                // Start Audio Processing ONLY after open to prevent race conditions
+                const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
+                audioContextRef.current = audioCtx;
+
+                const source = audioCtx.createMediaStreamSource(stream);
+                const scriptProcessor = audioCtx.createScriptProcessor(4096, 1, 1);
+                scriptProcessorRef.current = scriptProcessor;
+
+                scriptProcessor.onaudioprocess = (e) => {
+                    if (!activeSessionRef.current) return; // Guard
+                    const inputData = e.inputBuffer.getChannelData(0);
+                    const pcmBlob = createBlob(inputData);
+                    activeSessionRef.current.sendRealtimeInput({ media: pcmBlob });
+                };
+
+                source.connect(scriptProcessor);
+                scriptProcessor.connect(audioCtx.destination);
+            },
+            onmessage: (msg: LiveServerMessage) => {
+                 // Handle Transcription
+                 if (msg.serverContent?.inputTranscription) {
+                     const text = msg.serverContent.inputTranscription.text;
+                     if (text) {
+                         // Update Ref for synchronous access on stop
+                         transcriptionRef.current += text;
+                         // Update UI state
+                         setPrompt(transcriptionRef.current); 
+                     }
+                 }
+                 // Optional: Handle Turn Complete to add spacing
+                 if (msg.serverContent?.turnComplete) {
+                      transcriptionRef.current += " ";
+                      setPrompt(transcriptionRef.current);
+                 }
+            },
+            onclose: () => {
+                console.log("Gemini Live Session Closed");
+                if (isRecording) {
+                    setIsRecording(false);
+                    setMicActive(false);
+                }
+            },
+            onerror: (err) => {
+                console.error("Gemini Live API Error:", err);
+                addNotification('error', 'Voice Error: ' + err.message);
+                // Force cleanup
+                setIsRecording(false);
+                setMicActive(false);
+            }
+        },
+        config: {
+            responseModalities: [Modality.AUDIO], 
+            inputAudioTranscription: {}, // Enable transcription for user input
+        }
+      });
+
+      // Wait for session and store it for cleanup
+      sessionPromise.then(session => {
+          activeSessionRef.current = session;
+      }).catch(e => {
+          console.error("Connection Failed:", e);
+          addNotification('error', 'Connection Failed');
+          setIsRecording(false);
+          setMicActive(false);
+      });
+
+    } catch (e: any) {
+        console.error("Mic Access Error:", e);
+        addNotification('error', 'Microphone Access Denied');
+        setIsRecording(false);
+        setMicActive(false);
+    }
+  };
+
+  const handleTextTo3D = async (overridePrompt?: string) => {
+    // Allows passing prompt directly from voice callback to avoid state delay
+    const activePrompt = typeof overridePrompt === 'string' ? overridePrompt : prompt;
+    
+    if (!activePrompt.trim()) return;
+    
     setIsGenerating(true);
     setProgress(0);
     setStatusText('Initializing...');
 
     const newId = uuidv4();
     
-    addAsset({ id: newId, originalName: prompt, imageUrl: "https://placehold.co/100x100/18181b/666?text=Tripo+AI", status: AssetStatus.PENDING, modelUrl: null, createdAt: Date.now() });
+    addAsset({ id: newId, originalName: activePrompt, imageUrl: "https://placehold.co/100x100/18181b/666?text=Tripo+AI", status: AssetStatus.PENDING, modelUrl: null, createdAt: Date.now() });
     
-    const originalPrompt = prompt;
-    setPrompt('');
+    const originalPrompt = activePrompt;
+    setPrompt(''); // Clear UI
+    transcriptionRef.current = ''; // Clear Voice Buffer
 
     try {
         addNotification('info', 'Optimizing prompt with Gemini...');
@@ -1143,10 +1326,25 @@ export default function SceneViewer() {
             <input 
                 type="text" value={prompt} onChange={(e) => setPrompt(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleTextTo3D()}
                 placeholder={isGenerating ? "Generating..." : "Describe the 3D model (e.g. A cat wearing an astronaut helmet)..."}
-                disabled={isGenerating}
+                disabled={isGenerating || isRecording}
                 className="flex-1 bg-transparent border-none py-3 px-4 text-sm text-zinc-200 focus:outline-none placeholder:text-zinc-500 font-medium disabled:opacity-50"
             />
-            <button onClick={handleTextTo3D} disabled={isGenerating || !prompt.trim()} className="bg-indigo-600 hover:bg-indigo-500 text-white px-6 rounded-xl font-bold text-sm flex items-center gap-2 disabled:opacity-50 transition-all duration-300 ease-silky shadow-lg shadow-indigo-900/30 hover:scale-105 active:scale-95">
+            
+            {/* Voice Input Button */}
+            <button 
+                onClick={handleMicToggle} 
+                disabled={isGenerating} 
+                className={`p-3 rounded-xl flex items-center justify-center transition-all duration-300 ease-silky ${
+                    isRecording 
+                        ? 'bg-red-500/20 text-red-500 border border-red-500/50 shadow-[0_0_15px_rgba(239,68,68,0.3)] animate-pulse' 
+                        : 'text-zinc-400 hover:text-indigo-400 hover:bg-white/5'
+                }`}
+                title="Voice Input (Gemini Live)"
+            >
+                {isRecording ? <MicOff size={18} /> : <Mic size={18} />}
+            </button>
+
+            <button onClick={() => handleTextTo3D()} disabled={isGenerating || (!prompt.trim() && !isRecording)} className="bg-indigo-600 hover:bg-indigo-500 text-white px-6 rounded-xl font-bold text-sm flex items-center gap-2 disabled:opacity-50 transition-all duration-300 ease-silky shadow-lg shadow-indigo-900/30 hover:scale-105 active:scale-95">
                 {isGenerating ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} fill="currentColor" />}
                 Generate
             </button>
